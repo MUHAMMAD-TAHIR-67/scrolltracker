@@ -1,0 +1,106 @@
+import * as SQLite from "expo-sqlite";
+
+const DB_NAME = "scrolltracker.db";
+let dbInstance = null;
+
+/**
+ * Singleton async DB accessor. expo-sqlite (SDK 52+) exposes an async API
+ * backed by a native connection pool - safe to call from multiple places
+ * without manually managing open/close.
+ * @returns {Promise<SQLite.SQLiteDatabase>}
+ */
+export async function getDatabase() {
+  if (dbInstance) return dbInstance;
+  dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+  await runMigrations(dbInstance);
+  return dbInstance;
+}
+
+const SCHEMA_VERSION = 1;
+
+/** @param {SQLite.SQLiteDatabase} db */
+async function runMigrations(db) {
+  await db.execAsync("PRAGMA foreign_keys = ON;");
+
+  const row = await db.getFirstAsync("PRAGMA user_version;");
+  const currentVersion = row?.user_version ?? 0;
+
+  if (currentVersion < 1) {
+    // Metro/Hermes can't import .sql files directly, so the bootstrap DDL
+    // is inlined below (kept identical to src/db/schema.sql).
+    await db.execAsync(BOOTSTRAP_SQL_V1);
+    await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+  }
+
+  // Future migrations:
+  // if (currentVersion < 2) { await db.execAsync(MIGRATION_V2); await db.execAsync("PRAGMA user_version = 2;"); }
+}
+
+// Inlined copy of schema.sql (kept in sync manually, or generated at build
+// time via a small script - see scripts/generate-schema-const.js).
+const BOOTSTRAP_SQL_V1 = `
+CREATE TABLE IF NOT EXISTS platforms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  package_name TEXT NOT NULL,
+  color_hex TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  platform_id INTEGER NOT NULL REFERENCES platforms(id),
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  duration_ms INTEGER,
+  video_count INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'accessibility',
+  day_bucket TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_day ON sessions(day_bucket);
+CREATE INDEX IF NOT EXISTS idx_sessions_platform_day ON sessions(platform_id, day_bucket);
+CREATE TABLE IF NOT EXISTS video_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  occurred_at INTEGER NOT NULL,
+  confidence REAL NOT NULL DEFAULT 1.0,
+  detection TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_session ON video_events(session_id);
+CREATE TABLE IF NOT EXISTS daily_stats (
+  day_bucket TEXT NOT NULL,
+  platform_id INTEGER NOT NULL REFERENCES platforms(id),
+  total_videos INTEGER NOT NULL DEFAULT 0,
+  total_duration_ms INTEGER NOT NULL DEFAULT 0,
+  session_count INTEGER NOT NULL DEFAULT 0,
+  avg_watch_ms INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day_bucket, platform_id)
+);
+CREATE TABLE IF NOT EXISTS goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  platform_id INTEGER REFERENCES platforms(id),
+  goal_type TEXT NOT NULL,
+  limit_value INTEGER NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS streak_days (
+  day_bucket TEXT PRIMARY KEY,
+  goals_met INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS focus_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  planned_ms INTEGER NOT NULL,
+  interrupted INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO platforms (key, display_name, package_name, color_hex) VALUES
+  ('instagram_reels', 'Instagram Reels', 'com.instagram.android', '#E1306C'),
+  ('youtube_shorts', 'YouTube Shorts', 'com.google.android.youtube', '#FF0000'),
+  ('tiktok', 'TikTok', 'com.zhiliaoapp.musically', '#25F4EE'),
+  ('snapchat_spotlight', 'Snapchat Spotlight', 'com.snapchat.android', '#FFFC00');
+`;

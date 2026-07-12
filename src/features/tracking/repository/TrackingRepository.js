@@ -1,0 +1,187 @@
+import { getDatabase } from "@/db/database";
+import { format } from "date-fns";
+
+/**
+ * Single point of access to tracking data. UI and stores never write raw SQL -
+ * they call through here. Keeps SQL centralized and swappable (e.g. if we
+ * later move to op-sqlite or a sync backend).
+ */
+export class TrackingRepository {
+  /** @returns {Promise<import("../types").Platform[]>} */
+  async getPlatforms() {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync("SELECT * FROM platforms ORDER BY id;");
+    return rows.map(mapPlatform);
+  }
+
+  /** @returns {Promise<import("../types").Platform|null>} */
+  async getPlatformByKey(key) {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync("SELECT * FROM platforms WHERE key = ?;", [key]);
+    return row ? mapPlatform(row) : null;
+  }
+
+  /**
+   * @param {number} platformId
+   * @param {number} startedAt
+   * @param {import("../types").SessionSource} source
+   * @returns {Promise<number>} the new session id
+   */
+  async openSession(platformId, startedAt, source) {
+    const db = await getDatabase();
+    const dayBucket = format(startedAt, "yyyy-MM-dd");
+    const result = await db.runAsync(
+      `INSERT INTO sessions (platform_id, started_at, video_count, source, day_bucket)
+       VALUES (?, ?, 0, ?, ?);`,
+      [platformId, startedAt, source, dayBucket]
+    );
+    return result.lastInsertRowId;
+  }
+
+  async appendVideoEvent(sessionId, occurredAt, confidence, detection) {
+    const db = await getDatabase();
+    await db.runAsync(
+      `INSERT INTO video_events (session_id, occurred_at, confidence, detection) VALUES (?, ?, ?, ?);`,
+      [sessionId, occurredAt, confidence, detection]
+    );
+    await db.runAsync(`UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;`, [sessionId]);
+  }
+
+  async closeSession(sessionId, endedAt) {
+    const db = await getDatabase();
+    const session = await db.getFirstAsync("SELECT * FROM sessions WHERE id = ?;", [sessionId]);
+    if (!session) return;
+    const durationMs = endedAt - session.started_at;
+    await db.runAsync(
+      `UPDATE sessions SET ended_at = ?, duration_ms = ? WHERE id = ?;`,
+      [endedAt, durationMs, sessionId]
+    );
+    await this.recomputeDailyStat(session.platform_id, session.day_bucket);
+  }
+
+  /** Recomputes the daily_stats rollup row for a platform/day from raw sessions. */
+  async recomputeDailyStat(platformId, dayBucket) {
+    const db = await getDatabase();
+    const agg = await db.getFirstAsync(
+      `SELECT
+         COALESCE(SUM(video_count), 0) as total_videos,
+         COALESCE(SUM(duration_ms), 0) as total_duration_ms,
+         COUNT(*) as session_count
+       FROM sessions
+       WHERE platform_id = ? AND day_bucket = ? AND ended_at IS NOT NULL;`,
+      [platformId, dayBucket]
+    );
+    const avgWatchMs = agg.total_videos > 0 ? Math.round(agg.total_duration_ms / agg.total_videos) : 0;
+    await db.runAsync(
+      `INSERT INTO daily_stats (day_bucket, platform_id, total_videos, total_duration_ms, session_count, avg_watch_ms)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(day_bucket, platform_id) DO UPDATE SET
+         total_videos = excluded.total_videos,
+         total_duration_ms = excluded.total_duration_ms,
+         session_count = excluded.session_count,
+         avg_watch_ms = excluded.avg_watch_ms;`,
+      [dayBucket, platformId, agg.total_videos, agg.total_duration_ms, agg.session_count, avgWatchMs]
+    );
+  }
+
+  /** @returns {Promise<import("../types").DailyStat[]>} */
+  async getDailyStats(dayBucket) {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync(`SELECT * FROM daily_stats WHERE day_bucket = ?;`, [dayBucket]);
+    return rows.map(mapDailyStat);
+  }
+
+  /** @returns {Promise<import("../types").DailyStat[]>} */
+  async getStatsRange(startDay, endDay) {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync(
+      `SELECT * FROM daily_stats WHERE day_bucket BETWEEN ? AND ? ORDER BY day_bucket ASC;`,
+      [startDay, endDay]
+    );
+    return rows.map(mapDailyStat);
+  }
+
+  /** @returns {Promise<import("../types").Goal[]>} */
+  async getActiveGoals() {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync(`SELECT * FROM goals WHERE is_active = 1;`);
+    return rows.map(mapGoal);
+  }
+
+  /** @param {Omit<import("../types").Goal, "id"|"createdAt">} goal */
+  async upsertGoal(goal) {
+    const db = await getDatabase();
+    await db.runAsync(
+      `INSERT INTO goals (platform_id, goal_type, limit_value, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?);`,
+      [goal.platformId, goal.goalType, goal.limitValue, goal.isActive ? 1 : 0, Date.now()]
+    );
+  }
+
+  async recordStreakDay(dayBucket, goalsMet) {
+    const db = await getDatabase();
+    await db.runAsync(
+      `INSERT INTO streak_days (day_bucket, goals_met) VALUES (?, ?)
+       ON CONFLICT(day_bucket) DO UPDATE SET goals_met = excluded.goals_met;`,
+      [dayBucket, goalsMet ? 1 : 0]
+    );
+  }
+
+  /** @returns {Promise<number>} */
+  async getCurrentStreak() {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync(`SELECT * FROM streak_days ORDER BY day_bucket DESC LIMIT 90;`);
+    let streak = 0;
+    for (const row of rows) {
+      if (row.goals_met === 1) streak += 1;
+      else break;
+    }
+    return streak;
+  }
+
+  /** @returns {Promise<Record<string, string|number>[]>} */
+  async exportAllSessionsAsRows() {
+    const db = await getDatabase();
+    return db.getAllAsync(
+      `SELECT s.day_bucket, p.display_name as platform, s.started_at, s.ended_at,
+              s.duration_ms, s.video_count, s.source
+       FROM sessions s JOIN platforms p ON p.id = s.platform_id
+       WHERE s.ended_at IS NOT NULL
+       ORDER BY s.started_at ASC;`
+    );
+  }
+}
+
+function mapPlatform(row) {
+  return {
+    id: row.id,
+    key: row.key,
+    displayName: row.display_name,
+    packageName: row.package_name,
+    colorHex: row.color_hex,
+  };
+}
+
+function mapDailyStat(row) {
+  return {
+    dayBucket: row.day_bucket,
+    platformId: row.platform_id,
+    totalVideos: row.total_videos,
+    totalDurationMs: row.total_duration_ms,
+    sessionCount: row.session_count,
+    avgWatchMs: row.avg_watch_ms,
+  };
+}
+
+function mapGoal(row) {
+  return {
+    id: row.id,
+    platformId: row.platform_id,
+    goalType: row.goal_type,
+    limitValue: row.limit_value,
+    isActive: !!row.is_active,
+    createdAt: row.created_at,
+  };
+}
+
+export const trackingRepository = new TrackingRepository();
