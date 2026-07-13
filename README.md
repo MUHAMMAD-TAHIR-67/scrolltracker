@@ -263,3 +263,5 @@ Goals                      Focus Mode                Settings
   gracefully instead of silently going stale.
 - App icons, splash assets, and Play Store data-safety form (this app should
   declare "no data collected/shared" given the local-only design).
+#   s c r o l l t r a c k e r  
+ 
