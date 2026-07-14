@@ -148,8 +148,8 @@ function withMainApplicationRegistration(config) {
       if (contents.includes("ScrollTrackerPackage()")) return config;
 
       contents = contents.replace(
-        /(val packages = PackageList\(this\)\.packages)/,
-        `$1\n              packages.add(com.scrolltracker.ScrollTrackerPackage())`
+        /(PackageList\(this\)\.packages\.apply\s*\{)/,
+        `$1\n              add(com.scrolltracker.ScrollTrackerPackage())`
       );
 
       fs.writeFileSync(mainApplicationPath, contents, "utf8");
