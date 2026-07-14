@@ -40,27 +40,47 @@ export const usePermissionsStore = create((set, get) => ({
   onboardingComplete: false,
 
   refresh: async () => {
-    const [accessibility, usage, notif, onboardingComplete] = await Promise.all([
-      ScrollTrackerNative.isAccessibilityServiceEnabled(),
-      ScrollTrackerNative.isUsageAccessGranted(),
-      Notifications.getPermissionsAsync().then((r) => r.granted),
-      readOnboardingComplete(),
-    ]);
-    set({
-      accessibilityGranted: accessibility,
-      usageAccessGranted: usage,
-      notificationsGranted: notif,
-      onboardingComplete,
-    });
+    try {
+      const [accessibility, usage, notif, onboardingComplete] = await Promise.all([
+        ScrollTrackerNative.isAccessibilityServiceEnabled?.() ?? Promise.resolve(false),
+        ScrollTrackerNative.isUsageAccessGranted?.() ?? Promise.resolve(false),
+        Notifications.getPermissionsAsync().then((r) => r.granted),
+        readOnboardingComplete(),
+      ]);
+      set({
+        accessibilityGranted: accessibility,
+        usageAccessGranted: usage,
+        notificationsGranted: notif,
+        onboardingComplete,
+      });
+    } catch (e) {
+      console.warn("Failed to refresh permissions:", e);
+    }
   },
 
   requestNotifications: async () => {
-    const result = await Notifications.requestPermissionsAsync();
-    set({ notificationsGranted: result.granted });
+    try {
+      const result = await Notifications.requestPermissionsAsync();
+      set({ notificationsGranted: result.granted });
+    } catch (e) {
+      console.warn("Failed to request notifications:", e);
+    }
   },
 
-  openAccessibilitySettings: () => ScrollTrackerNative.openAccessibilitySettings(),
-  openUsageAccessSettings: () => ScrollTrackerNative.openUsageAccessSettings(),
+  openAccessibilitySettings: () => {
+    try {
+      ScrollTrackerNative.openAccessibilitySettings?.();
+    } catch (e) {
+      console.warn("Failed to open accessibility settings:", e);
+    }
+  },
+  openUsageAccessSettings: () => {
+    try {
+      ScrollTrackerNative.openUsageAccessSettings?.();
+    } catch (e) {
+      console.warn("Failed to open usage access settings:", e);
+    }
+  },
 
   completeOnboarding: () => {
     set({ onboardingComplete: true });

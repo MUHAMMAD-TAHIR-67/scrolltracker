@@ -41,11 +41,22 @@ export const ScrollTrackerNative =
 /** Emits `onScrollEvent` (NativeScrollEvent) in near-real-time while the service runs. */
 export const scrollTrackerEmitter =
   Platform.OS === "android" && NativeModules.ScrollTrackerModule
-    ? new NativeEventEmitter(NativeModules.ScrollTrackerModule)
+    ? (() => {
+        try {
+          return new NativeEventEmitter(NativeModules.ScrollTrackerModule);
+        } catch (e) {
+          console.warn("Failed to create NativeEventEmitter:", e);
+          return null;
+        }
+      })()
     : null;
 
 /** @param {(event: import("../types").NativeScrollEvent) => void} listener */
 export function subscribeToScrollEvents(listener) {
-  const sub = scrollTrackerEmitter?.addListener("onScrollEvent", listener);
+  if (!scrollTrackerEmitter) {
+    console.warn("ScrollTrackerEmitter is not available - native module not linked");
+    return () => {}; // noop unsubscribe
+  }
+  const sub = scrollTrackerEmitter.addListener("onScrollEvent", listener);
   return () => sub?.remove();
 }

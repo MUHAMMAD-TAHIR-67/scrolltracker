@@ -1,7 +1,8 @@
 import { Tabs } from "expo-router";
 import { Text } from "react-native";
 
-const ICONS: Record<string, string> = {
+/** @type {Record<string, string>} */
+const ICONS = {
   dashboard: "◧",
   analytics: "📊",
   goals: "🎯",

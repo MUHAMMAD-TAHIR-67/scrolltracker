@@ -27,11 +27,19 @@ class TrackingServiceImpl {
     const platforms = await trackingRepository.getPlatforms();
     platforms.forEach((p) => this.#platformsByPackage.set(p.packageName, p));
 
-    await ScrollTrackerNative.startTrackingService();
+    try {
+      await ScrollTrackerNative.startTrackingService();
+    } catch (e) {
+      console.warn("Failed to start tracking service:", e);
+    }
 
     // Pick up anything the native ring buffer captured before JS attached.
-    const pending = await ScrollTrackerNative.drainPendingEvents();
-    for (const evt of pending) await this.#handleEvent(evt);
+    try {
+      const pending = await ScrollTrackerNative.drainPendingEvents();
+      for (const evt of pending) await this.#handleEvent(evt);
+    } catch (e) {
+      console.warn("Failed to drain pending events:", e);
+    }
 
     this.#unsubscribe = subscribeToScrollEvents((evt) => this.#handleEvent(evt));
 
@@ -42,7 +50,11 @@ class TrackingServiceImpl {
     this.#unsubscribe?.();
     this.#unsubscribe = null;
     if (this.#sweepInterval) clearInterval(this.#sweepInterval);
-    await ScrollTrackerNative.stopTrackingService();
+    try {
+      await ScrollTrackerNative.stopTrackingService();
+    } catch (e) {
+      console.warn("Failed to stop tracking service:", e);
+    }
   }
 
   /** @param {import("../types").NativeScrollEvent} event */

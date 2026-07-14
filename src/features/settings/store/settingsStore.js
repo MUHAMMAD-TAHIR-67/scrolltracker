@@ -4,8 +4,10 @@ import { ScrollTrackerNative } from "@/features/tracking/native/ScrollTrackerMod
 import { Platform } from "react-native";
 
 function syncNative(thresholdMinutes, excessiveEnabled) {
-  if (Platform.OS === "android") {
-    ScrollTrackerNative.syncNativePrefs(thresholdMinutes, excessiveEnabled).catch(() => {});
+  if (Platform.OS === "android" && ScrollTrackerNative.syncNativePrefs) {
+    ScrollTrackerNative.syncNativePrefs(thresholdMinutes, excessiveEnabled).catch((e) => {
+      console.warn("Failed to sync native prefs:", e);
+    });
   }
 }
 
