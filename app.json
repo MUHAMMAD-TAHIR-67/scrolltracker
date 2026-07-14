@@ -23,36 +23,34 @@
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
-"plugins": [
-  "expo-router",
-  "expo-sqlite",
-  [
-    "expo-notifications",
-    {
-      "icon": "./assets/notification-icon.png",
-      "color": "#6366F1"
-    }
-  ],
-
-  "./plugins/withScrollTrackerAccessibility.js",
-  "./plugins/withUsageStatsPermission.js",
-
-  [
-    "expo-build-properties",
-    {
-      "android": {
-        "enableProguardInReleaseBuilds": true,
-        "extraProguardRules": "-keep class com.scrolltracker.** { *; }",
-        "enableMinifyInReleaseBuilds": true
-      }
-    }
-  ]
-],
     "extra": {
       "router": {},
       "eas": {
         "projectId": "423ada58-0c22-4344-9447-9ffff750156e"
       }
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#6366F1"
+        }
+      ],
+      "./plugins/withScrollTrackerAccessibility.js",
+      "./plugins/withUsageStatsPermission.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "extraProguardRules": "-keep class com.scrolltracker.** { *; }",
+            "enableMinifyInReleaseBuilds": true
+          }
+        }
+      ]
+    ]
   }
 }
