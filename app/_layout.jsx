@@ -1,5 +1,5 @@
 import "../src/global.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
@@ -25,53 +25,52 @@ Notifications.setNotificationHandler({
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
-  const initTracking = useTrackingStore((s) => s.init);
-  const refreshPermissions = usePermissionsStore((s) => s.refresh);
-  const loadSettings = useSettingsStore((s) => s.load);
+  const initRef = useRef(false);
 
   useEffect(() => {
+    // Prevent initialization from running multiple times
+    if (initRef.current) return;
+    initRef.current = true;
+
     (async () => {
       try {
-        // Try to initialize database
+        // Initialize database
         try {
           await getDatabase();
-          console.log("[v0] Database initialized");
         } catch (dbError) {
           console.warn("[v0] Database init failed:", dbError);
         }
 
-        // Try to load stores
+        // Load stores
         try {
-          await Promise.all([initTracking(), refreshPermissions(), loadSettings()]);
-          console.log("[v0] Stores initialized");
+          await Promise.all([
+            useTrackingStore.getState().init(),
+            usePermissionsStore.getState().refresh(),
+            useSettingsStore.getState().load(),
+          ]);
         } catch (storeError) {
           console.warn("[v0] Store init failed:", storeError);
         }
 
-        // Try to start tracking
+        // Start tracking if allowed
         try {
           const perms = usePermissionsStore.getState();
           if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
             await TrackingService.start();
             useTrackingStore.getState().setTrackingActive(true);
-            console.log("[v0] Tracking started");
           }
         } catch (trackingError) {
           console.warn("[v0] Tracking init failed:", trackingError);
         }
 
+        // Navigate to onboarding if needed
+        const perms = usePermissionsStore.getState();
+        if (!perms.onboardingComplete) {
+          router.replace("/onboarding");
+        }
+
         setReady(true);
         await SplashScreen.hideAsync();
-
-        // Check onboarding
-        try {
-          const perms = usePermissionsStore.getState();
-          if (!perms.onboardingComplete) {
-            router.replace("/onboarding");
-          }
-        } catch (e) {
-          console.warn("[v0] Could not check onboarding:", e);
-        }
       } catch (error) {
         console.error("[v0] Fatal error:", error);
         setReady(true);
