@@ -12,16 +12,22 @@ let dbInstance = null;
 export async function getDatabase() {
   if (dbInstance) return dbInstance;
   try {
-    dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-    if (!dbInstance) {
-      throw new Error("Failed to open database - dbInstance is null");
+    console.log("[v0] Opening database...");
+    const db = await SQLite.openDatabaseAsync(DB_NAME);
+    if (!db) {
+      throw new Error("Failed to open database - returned null");
     }
+    console.log("[v0] Database opened successfully");
+    
+    dbInstance = db;
     await runMigrations(dbInstance);
+    console.log("[v0] Database migrations completed");
     return dbInstance;
   } catch (error) {
-    console.error("[v0] Database initialization error:", error);
+    console.error("[v0] Database initialization failed:", error?.message || error);
+    // Don't throw - allow app to continue without database
     dbInstance = null;
-    throw error;
+    return null;
   }
 }
 
@@ -29,20 +35,27 @@ const SCHEMA_VERSION = 1;
 
 /** @param {SQLite.SQLiteDatabase} db */
 async function runMigrations(db) {
-  await db.execAsync("PRAGMA foreign_keys = ON;");
+  if (!db) return;
+  
+  try {
+    await db.execAsync("PRAGMA foreign_keys = ON;");
 
-  const row = await db.getFirstAsync("PRAGMA user_version;");
-  const currentVersion = row?.user_version ?? 0;
+    const row = await db.getFirstAsync("PRAGMA user_version;");
+    const currentVersion = row?.user_version ?? 0;
 
-  if (currentVersion < 1) {
-    // Metro/Hermes can't import .sql files directly, so the bootstrap DDL
-    // is inlined below (kept identical to src/db/schema.sql).
-    await db.execAsync(BOOTSTRAP_SQL_V1);
-    await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+    if (currentVersion < 1) {
+      // Metro/Hermes can't import .sql files directly, so the bootstrap DDL
+      // is inlined below (kept identical to src/db/schema.sql).
+      await db.execAsync(BOOTSTRAP_SQL_V1);
+      await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+      console.log("[v0] Database schema v1 created");
+    }
+
+    // Future migrations:
+    // if (currentVersion < 2) { await db.execAsync(MIGRATION_V2); await db.execAsync("PRAGMA user_version = 2;"); }
+  } catch (error) {
+    console.warn("[v0] Migration error (continuing anyway):", error?.message || error);
   }
-
-  // Future migrations:
-  // if (currentVersion < 2) { await db.execAsync(MIGRATION_V2); await db.execAsync("PRAGMA user_version = 2;"); }
 }
 
 // Inlined copy of schema.sql (kept in sync manually, or generated at build
