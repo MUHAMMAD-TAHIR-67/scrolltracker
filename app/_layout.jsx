@@ -34,47 +34,77 @@ export default function RootLayout() {
 
     (async () => {
       try {
+        console.log("[v0] Starting app initialization");
+
         // Initialize database
         try {
+          console.log("[v0] Initializing database...");
           await getDatabase();
+          console.log("[v0] Database ready");
         } catch (dbError) {
           console.warn("[v0] Database init failed:", dbError);
         }
 
         // Load stores
         try {
+          console.log("[v0] Initializing stores...");
           await Promise.all([
             useTrackingStore.getState().init(),
             usePermissionsStore.getState().refresh(),
             useSettingsStore.getState().load(),
           ]);
+          console.log("[v0] Stores ready");
         } catch (storeError) {
           console.warn("[v0] Store init failed:", storeError);
         }
 
         // Start tracking if allowed
         try {
+          console.log("[v0] Checking permissions...");
           const perms = usePermissionsStore.getState();
+          console.log("[v0] Permissions state:", {
+            onboardingComplete: perms.onboardingComplete,
+            allGranted: allRequiredPermissionsGranted(perms),
+          });
           if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
+            console.log("[v0] Starting tracking service...");
             await TrackingService.start();
             useTrackingStore.getState().setTrackingActive(true);
+            console.log("[v0] Tracking active");
           }
         } catch (trackingError) {
           console.warn("[v0] Tracking init failed:", trackingError);
         }
 
-        // Navigate to onboarding if needed
-        const perms = usePermissionsStore.getState();
-        if (!perms.onboardingComplete) {
-          router.replace("/onboarding");
+        console.log("[v0] Marking app as ready");
+        setReady(true);
+
+        // Hide splash screen
+        try {
+          await SplashScreen.hideAsync();
+          console.log("[v0] Splash screen hidden");
+        } catch (e) {
+          console.warn("[v0] Error hiding splash screen:", e);
         }
 
-        setReady(true);
-        await SplashScreen.hideAsync();
+        // Navigate to onboarding if needed (do this after setReady)
+        try {
+          const perms = usePermissionsStore.getState();
+          if (!perms.onboardingComplete) {
+            console.log("[v0] Navigating to onboarding");
+            router.replace("/onboarding");
+          }
+        } catch (navError) {
+          console.warn("[v0] Navigation error:", navError);
+        }
       } catch (error) {
         console.error("[v0] Fatal error:", error);
         setReady(true);
-        await SplashScreen.hideAsync();
+        try {
+          await SplashScreen.hideAsync();
+        } catch (e) {
+          console.warn("[v0] Error hiding splash in catch:", e);
+        }
       }
     })();
 
