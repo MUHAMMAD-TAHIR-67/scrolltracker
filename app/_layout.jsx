@@ -56,15 +56,16 @@ export default function RootLayout() {
           console.warn("[v0] Store init failed:", storeError);
         }
 
-        // Start tracking if allowed
+        // Don't auto-start tracking service - let user grant permissions first in onboarding
+        // The tracking service will be started manually after permissions are granted
         try {
           const perms = usePermissionsStore.getState();
-          if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
-            await TrackingService.start();
-            useTrackingStore.getState().setTrackingActive(true);
+          if (!perms.onboardingComplete) {
+            // User hasn't completed onboarding yet - don't start tracking
+            useTrackingStore.getState().setTrackingActive(false);
           }
-        } catch (trackingError) {
-          console.warn("[v0] Tracking init failed:", trackingError);
+        } catch (error) {
+          console.warn("[v0] Could not check onboarding status:", error);
         }
 
         setReady(true);
