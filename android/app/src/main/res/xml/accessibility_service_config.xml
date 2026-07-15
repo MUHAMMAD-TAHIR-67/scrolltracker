@@ -18,4 +18,4 @@
     android:canRetrieveWindowContent="false"
     android:notificationTimeout="100"
     android:packageNames="com.instagram.android,com.google.android.youtube,com.zhiliaoapp.musically,com.ss.android.ugc.trill,com.snapchat.android"
-    android:description="Tracks scroll and screen-change events in short-form video apps to count videos watched. No screen content, text, or images are read or stored." />
+    android:description="@string/accessibility_service_description" />
