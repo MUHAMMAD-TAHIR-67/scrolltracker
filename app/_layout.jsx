@@ -27,7 +27,6 @@ let initializationDone = false;
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     // Use a module-level flag instead of useRef to truly prevent re-running
@@ -63,8 +62,6 @@ export default function RootLayout() {
           if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
             await TrackingService.start();
             useTrackingStore.getState().setTrackingActive(true);
-          } else if (!perms.onboardingComplete) {
-            setShowOnboarding(true);
           }
         } catch (trackingError) {
           console.warn("[v0] Tracking init failed:", trackingError);
@@ -100,17 +97,14 @@ export default function RootLayout() {
     <View className="flex-1 bg-bg">
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
-        {showOnboarding ? (
-          <Stack.Screen 
-            name="onboarding/index" 
-            options={{ animationEnabled: false }}
-          />
-        ) : (
-          <Stack.Screen 
-            name="(tabs)" 
-            options={{ animationEnabled: false }}
-          />
-        )}
+        <Stack.Screen 
+          name="(tabs)" 
+          options={{ animationEnabled: false }}
+        />
+        <Stack.Screen 
+          name="onboarding/index" 
+          options={{ animationEnabled: false }}
+        />
       </Stack>
     </View>
   );
