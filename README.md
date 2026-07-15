@@ -88,12 +88,24 @@ only). Requires **Node.js 20.19.4+**. If you're coming from SDK 52:
 
 ## Setup
 
+### Quick Start
+
 ```bash
 rm -rf android node_modules   # if upgrading from an older SDK, see above
 npm install
 npx expo prebuild --platform android   # generates android/, runs config plugins
 npx expo run:android                   # or: eas build --profile development
 ```
+
+### Build Issues?
+
+If you encounter Gradle/Kotlin compilation errors:
+
+```bash
+bash scripts/fix-build.sh
+```
+
+See [BUILD_GUIDE.md](./BUILD_GUIDE.md) for complete troubleshooting and build instructions.
 
 The config plugins run automatically on every `prebuild` and:
 1. Add the `ScrollAccessibilityService`, `TrackerForegroundService`, and
