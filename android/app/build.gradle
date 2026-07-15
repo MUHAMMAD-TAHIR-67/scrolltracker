@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.scrolltracker'
+    namespace 'com.anonymous.scrolltracker'
     defaultConfig {
-        applicationId 'com.scrolltracker'
+        applicationId 'com.anonymous.scrolltracker'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

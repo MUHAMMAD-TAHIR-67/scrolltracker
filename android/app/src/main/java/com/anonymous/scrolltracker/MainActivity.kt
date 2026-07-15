@@ -1,4 +1,4 @@
-package com.scrolltracker
+package com.anonymous.scrolltracker
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

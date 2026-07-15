@@ -15,7 +15,7 @@
     "@shopify/react-native-skia": "2.2.12",
     "date-fns": "^4.4.0",
     "eslint-config-expo": "~10.0.0",
-    "expo": "~54.0.36",
+    "expo": "^54.0.35",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.21",
     "expo-file-system": "~19.0.23",
@@ -42,12 +42,16 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
-    "@expo/config-plugins": "^57.0.5",
     "babel-plugin-module-resolver": "^5.0.3",
     "babel-preset-expo": "^54.0.11",
     "eslint": "^8.57.0",
     "eslint-config-expo": "~10.0.0",
     "expo-build-properties": "~1.0.10"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "install": {
+      "exclude": ["expo"]
+    }
+  }
 }

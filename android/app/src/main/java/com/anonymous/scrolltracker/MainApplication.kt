@@ -1,4 +1,4 @@
-package com.scrolltracker
+package com.anonymous.scrolltracker
 
 import android.app.Application
 import android.content.res.Configuration
