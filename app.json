@@ -23,6 +23,7 @@
       ],
       "./plugins/withScrollTrackerAccessibility.js",
       "./plugins/withUsageStatsPermission.js",
+      "./plugins/withForegroundServicePermission.js",
       [
         "expo-build-properties",
         {
