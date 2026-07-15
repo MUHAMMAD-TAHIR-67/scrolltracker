@@ -3,26 +3,7 @@
     "name": "ScrollTracker",
     "slug": "scrolltracker",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "scheme": "scrolltracker",
-    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "android": {
-      "package": "com.scrolltracker",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F172A"
-      },
-      "permissions": [
-        "android.permission.PACKAGE_USAGE_STATS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.POST_NOTIFICATIONS"
-      ]
-    },
     "extra": {
       "router": {},
       "eas": {
@@ -51,6 +32,9 @@
           }
         }
       ]
-    ]
+    ],
+    "android": {
+      "package": "com.anonymous.scrolltracker"
+    }
   }
 }
