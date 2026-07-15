@@ -1,0 +1,3 @@
+﻿<resources>
+    <string name="accessibility_service_description">Tracks scroll and screen-change events in short-form video apps to count videos watched. No screen content, text, or images are read or stored.</string>
+</resources>

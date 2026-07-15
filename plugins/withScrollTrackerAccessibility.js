@@ -9,6 +9,7 @@ const path = require("path");
 const PACKAGE_PATH = "com/scrolltracker";
 const KOTLIN_SOURCE_DIR = path.join(__dirname, "..", "android-native", "kotlin");
 const XML_SOURCE_DIR = path.join(__dirname, "..", "android-native", "res", "xml");
+const VALUES_SOURCE_DIR = path.join(__dirname, "..", "android-native", "res", "values");
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -34,12 +35,16 @@ function withNativeFiles(config) {
         ...PACKAGE_PATH.split("/")
       );
       const xmlDir = path.join(androidRoot, "app", "src", "main", "res", "xml");
+      const valuesDir = path.join(androidRoot, "app", "src", "main", "res", "values");
 
       for (const file of fs.readdirSync(KOTLIN_SOURCE_DIR)) {
         copyFile(path.join(KOTLIN_SOURCE_DIR, file), javaDir);
       }
       for (const file of fs.readdirSync(XML_SOURCE_DIR)) {
         copyFile(path.join(XML_SOURCE_DIR, file), xmlDir);
+      }
+      for (const file of fs.readdirSync(VALUES_SOURCE_DIR)) {
+        copyFile(path.join(VALUES_SOURCE_DIR, file), valuesDir);
       }
 
       return config;
