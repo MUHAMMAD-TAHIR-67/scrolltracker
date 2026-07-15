@@ -1,4 +1,4 @@
-const { withAndroidManifest } = require("@expo/config-plugins");
+const { withAndroidManifest } = require("expo/config-plugins");
 
 /**
  * android.permission.PACKAGE_USAGE_STATS cannot be granted through the normal
