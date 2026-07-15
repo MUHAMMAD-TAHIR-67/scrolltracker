@@ -15,7 +15,7 @@
     "@shopify/react-native-skia": "2.2.12",
     "date-fns": "^4.4.0",
     "eslint-config-expo": "~10.0.0",
-    "expo": "~54.0.0",
+    "expo": "~54.0.36",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.21",
     "expo-file-system": "~19.0.23",
@@ -44,7 +44,6 @@
     "@babel/core": "^7.25.0",
     "babel-plugin-module-resolver": "^5.0.3",
     "babel-preset-expo": "^54.0.11",
-    "eas-cli": "^20.5.1",
     "eslint": "^8.57.0",
     "eslint-config-expo": "~10.0.0",
     "expo-build-properties": "~1.0.10"
