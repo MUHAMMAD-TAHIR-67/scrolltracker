@@ -4,7 +4,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import { getDatabase } from "@/db/database";
 import { useTrackingStore } from "@/features/tracking/store/trackingStore";
 import { usePermissionsStore, allRequiredPermissionsGranted } from "@/features/tracking/store/permissionsStore";
@@ -32,20 +32,32 @@ export default function RootLayout() {
 
   useEffect(() => {
     (async () => {
-      await getDatabase(); // runs migrations
-      await Promise.all([initTracking(), refreshPermissions(), loadSettings()]);
+      try {
+        console.log("[v0] Starting app initialization");
+        await getDatabase(); // runs migrations
+        console.log("[v0] Database initialized");
+        
+        await Promise.all([initTracking(), refreshPermissions(), loadSettings()]);
+        console.log("[v0] Stores initialized");
 
-      const perms = usePermissionsStore.getState();
-      if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
-        await TrackingService.start();
-        useTrackingStore.getState().setTrackingActive(true);
-      }
+        const perms = usePermissionsStore.getState();
+        if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
+          await TrackingService.start();
+          useTrackingStore.getState().setTrackingActive(true);
+        }
 
-      setReady(true);
-      await SplashScreen.hideAsync();
+        setReady(true);
+        await SplashScreen.hideAsync();
+        console.log("[v0] App ready");
 
-      if (!perms.onboardingComplete) {
-        router.replace("/onboarding");
+        if (!perms.onboardingComplete) {
+          router.replace("/onboarding");
+        }
+      } catch (error) {
+        console.error("[v0] Initialization error:", error);
+        // Set ready anyway to show error screen
+        setReady(true);
+        await SplashScreen.hideAsync();
       }
     })();
 
@@ -54,7 +66,11 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!ready) return <View className="flex-1 bg-bg" />;
+  if (!ready) return (
+    <View className="flex-1 bg-bg justify-center items-center">
+      <Text className="text-white text-lg">Loading ScrollTracker...</Text>
+    </View>
+  );
 
   return (
     <View className="flex-1 bg-bg">
