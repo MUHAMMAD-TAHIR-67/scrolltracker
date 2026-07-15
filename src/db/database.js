@@ -11,9 +11,18 @@ let dbInstance = null;
  */
 export async function getDatabase() {
   if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-  await runMigrations(dbInstance);
-  return dbInstance;
+  try {
+    dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+    if (!dbInstance) {
+      throw new Error("Failed to open database - dbInstance is null");
+    }
+    await runMigrations(dbInstance);
+    return dbInstance;
+  } catch (error) {
+    console.error("[v0] Database initialization error:", error);
+    dbInstance = null;
+    throw error;
+  }
 }
 
 const SCHEMA_VERSION = 1;

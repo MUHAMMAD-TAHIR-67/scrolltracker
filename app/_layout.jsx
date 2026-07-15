@@ -1,9 +1,6 @@
 import "../src/global.css";
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
-import "../src/global.css";
-import { useEffect, useState } from "react";
-import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
@@ -35,30 +32,59 @@ export default function RootLayout() {
   useEffect(() => {
     (async () => {
       try {
-        await getDatabase();
-        await Promise.all([initTracking(), refreshPermissions(), loadSettings()]);
+        // Try to initialize database
+        try {
+          await getDatabase();
+          console.log("[v0] Database initialized");
+        } catch (dbError) {
+          console.warn("[v0] Database init failed:", dbError);
+        }
 
-        const perms = usePermissionsStore.getState();
-        if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
-          await TrackingService.start();
-          useTrackingStore.getState().setTrackingActive(true);
+        // Try to load stores
+        try {
+          await Promise.all([initTracking(), refreshPermissions(), loadSettings()]);
+          console.log("[v0] Stores initialized");
+        } catch (storeError) {
+          console.warn("[v0] Store init failed:", storeError);
+        }
+
+        // Try to start tracking
+        try {
+          const perms = usePermissionsStore.getState();
+          if (allRequiredPermissionsGranted(perms) && perms.onboardingComplete) {
+            await TrackingService.start();
+            useTrackingStore.getState().setTrackingActive(true);
+            console.log("[v0] Tracking started");
+          }
+        } catch (trackingError) {
+          console.warn("[v0] Tracking init failed:", trackingError);
         }
 
         setReady(true);
         await SplashScreen.hideAsync();
 
-        if (!perms.onboardingComplete) {
-          router.replace("/onboarding");
+        // Check onboarding
+        try {
+          const perms = usePermissionsStore.getState();
+          if (!perms.onboardingComplete) {
+            router.replace("/onboarding");
+          }
+        } catch (e) {
+          console.warn("[v0] Could not check onboarding:", e);
         }
       } catch (error) {
-        console.error("[v0] Error:", error);
+        console.error("[v0] Fatal error:", error);
         setReady(true);
         await SplashScreen.hideAsync();
       }
     })();
 
     return () => {
-      TrackingService.stop();
+      try {
+        TrackingService.stop();
+      } catch (e) {
+        console.warn("[v0] Error stopping tracking:", e);
+      }
     };
   }, []);
 
@@ -69,43 +95,6 @@ export default function RootLayout() {
       </View>
     );
   }
-
-  return (
-    <View className="flex-1 bg-bg">
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="onboarding/index" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </View>
-  );
-}
-
-        setReady(true);
-        await SplashScreen.hideAsync();
-        console.log("[v0] App ready");
-
-        if (!perms.onboardingComplete) {
-          router.replace("/onboarding");
-        }
-      } catch (error) {
-        console.error("[v0] Initialization error:", error);
-        // Set ready anyway to show error screen
-        setReady(true);
-        await SplashScreen.hideAsync();
-      }
-    })();
-
-    return () => {
-      TrackingService.stop();
-    };
-  }, []);
-
-  if (!ready) return (
-    <View className="flex-1 bg-bg justify-center items-center">
-      <Text className="text-white text-lg">Loading ScrollTracker...</Text>
-    </View>
-  );
 
   return (
     <View className="flex-1 bg-bg">
