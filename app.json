@@ -3,6 +3,7 @@
     "name": "ScrollTracker",
     "slug": "scrolltracker",
     "version": "1.0.0",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
       "router": {},
