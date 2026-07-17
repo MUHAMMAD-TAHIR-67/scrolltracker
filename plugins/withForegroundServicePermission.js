@@ -9,16 +9,26 @@ module.exports = function withForegroundServicePermission(config) {
     const manifest = config.modResults;
     manifest.manifest["uses-permission"] = manifest.manifest["uses-permission"] ?? [];
 
-    const entry = manifest.manifest["uses-permission"].find(
-      (p) => p.$["android:name"] === "android.permission.FOREGROUND_SERVICE"
-    );
+    const requiredPermissions = [
+      "android.permission.FOREGROUND_SERVICE",
+      // Required on Android 14+ (API 34+) because TrackerForegroundService
+      // declares android:foregroundServiceType="dataSync". Without this,
+      // startForeground() throws at runtime and the service crashes silently.
+      "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    ];
 
-    if (!entry) {
-      manifest.manifest["uses-permission"].push({
-        $: {
-          "android:name": "android.permission.FOREGROUND_SERVICE",
-        },
-      });
+    for (const permissionName of requiredPermissions) {
+      const entry = manifest.manifest["uses-permission"].find(
+        (p) => p.$["android:name"] === permissionName
+      );
+
+      if (!entry) {
+        manifest.manifest["uses-permission"].push({
+          $: {
+            "android:name": permissionName,
+          },
+        });
+      }
     }
 
     return config;

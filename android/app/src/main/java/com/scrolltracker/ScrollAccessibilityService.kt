@@ -44,6 +44,12 @@ class ScrollAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val packageName = event.packageName?.toString() ?: return
+
+        // TEMP DIAGNOSTIC - remove after debugging. Logs every event the
+        // service receives, even from untracked packages, so we can tell
+        // "service isn't receiving anything" apart from "wrong package name".
+        Log.d("ScrollTrackerDebug", "event pkg=$packageName type=${event.eventType}")
+
         if (packageName !in trackedPackages) return
 
         val eventType = when (event.eventType) {

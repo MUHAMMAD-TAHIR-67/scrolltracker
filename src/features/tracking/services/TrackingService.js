@@ -5,16 +5,39 @@ import { useTrackingStore } from "../store/trackingStore";
 import { useFocusStore, notifyFocusModeBreach } from "@/features/focus/services/FocusModeService";
 
 /**
+ * Some apps ship different package IDs on different builds/regions. The
+ * `platforms` table only stores one canonical package_name per platform
+ * (see src/db/database.js), so any alternate package ID has to be mapped
+ * back to the canonical one here before we look it up - otherwise events
+ * from the alternate package are silently dropped in #handleEvent.
+ *
+ * Keep this in sync with SessionEstimator.js#resolvePlatformKey and the
+ * trackedPackages sets in ScrollAccessibilityService.kt / TrackerForegroundService.kt.
+ */
+const PACKAGE_ALIASES = {
+  "com.ss.android.ugc.trill": "com.zhiliaoapp.musically", // TikTok, alternate regional package id
+};
+
+function canonicalPackageName(packageName) {
+  return PACKAGE_ALIASES[packageName] ?? packageName;
+}
+
+/**
  * App-side orchestrator. Subscribes to the native event emitter, feeds events
  * through SessionEstimator, persists results via the repository, and updates
  * the Zustand store for live UI. Also runs a periodic sweep to close idle
  * sessions and reconcile against UsageStatsManager as a sanity check.
  *
- * A parallel, more resilient copy of this pipeline runs natively inside
- * TrackerForegroundService.kt so tracking survives the JS runtime being
- * killed; that native copy writes directly into the same SQLite file via
- * the same schema (see android/.../TrackerForegroundService.kt), and this
- * class simply picks up whatever happened while JS was alive for live UI.
+ * NOTE: TrackerForegroundService.kt keeps this process more likely to stay
+ * alive and independently polls UsageStatsManager for excessive-scroll
+ * notifications, but it does NOT write video events or sessions to SQLite.
+ * All actual video-count persistence happens here, in JS, and only while
+ * this runtime is alive - if the OS kills/freezes the process (e.g.
+ * aggressive OEM battery managers), events pile up in the native ring
+ * buffer (ScrollEventBus, capped at 500) and are only recovered via
+ * drainPendingEvents() the next time this runtime starts. If you see
+ * consistently missing videos even with all packages/aliases mapped
+ * correctly, check whether the process is being killed while backgrounded.
  */
 class TrackingServiceImpl {
   #estimator = new SessionEstimator();
@@ -58,7 +81,11 @@ class TrackingServiceImpl {
   }
 
   /** @param {import("../types").NativeScrollEvent} event */
-  async #handleEvent(event) {
+  async #handleEvent(rawEvent) {
+    // Normalize alternate package IDs (e.g. TikTok's com.ss.android.ugc.trill)
+    // to the canonical one stored in the platforms table.
+    const event = { ...rawEvent, packageName: canonicalPackageName(rawEvent.packageName) };
+
     const platform = this.#platformsByPackage.get(event.packageName);
     if (!platform) return; // not a tracked app
 
