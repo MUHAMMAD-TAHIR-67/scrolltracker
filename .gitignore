@@ -30,6 +30,7 @@ target/
 
 # Logs
 *.log
+*.tmp
 
 # Python specific
 .mypy_cache/

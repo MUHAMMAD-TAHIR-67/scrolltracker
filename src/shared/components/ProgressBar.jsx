@@ -22,9 +22,14 @@ export function ProgressBar({ progress, colorHex, height = 8 }) {
   const isOverLimit = progress > 1;
 
   return (
-    <View className="w-full rounded-full bg-surfaceAlt overflow-hidden" style={{ height }}>
+    <View 
+      className="w-full rounded-full bg-surfaceContainerHighest" 
+      style={{ height }}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+    >
       <Animated.View
-        style={[style, { backgroundColor: isOverLimit ? "#F87171" : colorHex, height }]}
+        style={[style, { backgroundColor: isOverLimit ? "#F2B8B5" : colorHex, height }]}
         className="rounded-full"
       />
     </View>

@@ -1,13 +1,14 @@
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Platform } from "react-native";
 
-/** @type {Record<string, string>} */
-const ICONS = {
-  dashboard: "◧",
-  analytics: "📊",
-  goals: "🎯",
-  focus: "⏱",
-  settings: "⚙",
+/** @type {Record<string, {icon: string, label: string}>} */
+const TAB_CONFIG = {
+  dashboard: { icon: "view-dashboard", label: "Dashboard" },
+  analytics: { icon: "chart-bar", label: "Analytics" },
+  goals: { icon: "target", label: "Goals" },
+  focus: { icon: "timer-outline", label: "Focus" },
+  settings: { icon: "cog-outline", label: "Settings" },
 };
 
 export default function TabsLayout() {
@@ -15,13 +16,31 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#22D3EE",
-        tabBarInactiveTintColor: "#94A3B8",
+        tabBarActiveTintColor: "#D0BCFF",
+        tabBarInactiveTintColor: "#938F99",
         tabBarStyle: {
-          backgroundColor: "#1E293B",
-          borderTopColor: "#273549",
+          backgroundColor: "#1D1B20",
+          borderTopColor: "#49454F",
+          borderTopWidth: 1,
+          height: Platform.OS === 'ios' ? 88 : 80,
+          paddingBottom: Platform.OS === 'ios' ? 8 : 0,
+          paddingTop: 8,
         },
-        tabBarIcon: () => <Text style={{ fontSize: 18 }}>{ICONS[route.name]}</Text>,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "500",
+          marginTop: 4,
+        },
+        tabBarIcon: ({ focused, color, size }) => {
+          const config = TAB_CONFIG[route.name];
+          return (
+            <MaterialCommunityIcons 
+              name={config.icon} 
+              size={focused ? 24 : 24} 
+              color={color} 
+            />
+          );
+        },
       })}
     >
       <Tabs.Screen name="dashboard" options={{ title: "Dashboard" }} />
