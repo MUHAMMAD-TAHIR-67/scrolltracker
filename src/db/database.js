@@ -57,8 +57,38 @@ async function runMigrations(db) {
       await db.execAsync(`PRAGMA user_version = 2;`);
       console.log("[v0] Database schema v2 migrated (added swipe detection columns)");
     }
+
+    // Run recovery on startup
+    await recoverOrphanedSessions(db);
   } catch (error) {
     console.warn("[v0] Migration error (continuing anyway):", error?.message || error);
+  }
+}
+
+/**
+ * Recover orphaned sessions from crash/force-close.
+ * Called on every app startup to ensure data integrity.
+ * @param {SQLite.SQLiteDatabase} db
+ */
+async function recoverOrphanedSessions(db) {
+  if (!db) return;
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const orphanedResult = await db.getFirstAsync(
+      `SELECT COUNT(*) as count FROM sessions WHERE ended_at IS NULL AND started_at < ?`,
+      [now - 300] // Sessions open for more than 5 minutes without proper close
+    );
+    
+    if (orphanedResult?.count > 0) {
+      // Close orphaned sessions as terminated by crash
+      await db.execAsync(
+        `UPDATE sessions SET ended_at = ? WHERE ended_at IS NULL AND started_at < ?`,
+        [now, now - 300]
+      );
+      console.log(`[v0] Recovered ${orphanedResult.count} orphaned sessions from previous crash`);
+    }
+  } catch (error) {
+    console.warn("[v0] Recovery error (continuing anyway):", error?.message || error);
   }
 }
 
