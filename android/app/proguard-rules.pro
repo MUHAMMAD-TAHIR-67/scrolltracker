@@ -15,4 +15,6 @@
 
 # @generated begin expo-build-properties - expo prebuild (DO NOT MODIFY)
 -keep class com.scrolltracker.** { *; }
+-keep class com.scrolltracker.** { *; }
+-keep class com.scrolltracker.** { *; }
 # @generated end expo-build-properties

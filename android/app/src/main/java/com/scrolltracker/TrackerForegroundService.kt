@@ -1,4 +1,4 @@
-package com.scrolltracker
+﻿package com.scrolltracker
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -71,6 +71,16 @@ class TrackerForegroundService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(pollRunnable)
         super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        val restartIntent = Intent(applicationContext, TrackerForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            applicationContext.startForegroundService(restartIntent)
+        } else {
+            applicationContext.startService(restartIntent)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

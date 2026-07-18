@@ -1,4 +1,4 @@
-package com.scrolltracker
+﻿package com.scrolltracker
 
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
@@ -56,6 +56,28 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
         reactApplicationContext.startActivity(intent)
     }
 
+    @ReactMethod
+    fun requestIgnoreBatteryOptimizations() {
+        val packageName = reactApplicationContext.packageName
+        val pm = reactApplicationContext.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            reactApplicationContext.startActivity(intent)
+        }
+    }
+
+    @ReactMethod
+    fun isIgnoringBatteryOptimizations(promise: Promise) {
+        try {
+            val pm = reactApplicationContext.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            promise.resolve(pm.isIgnoringBatteryOptimizations(reactApplicationContext.packageName))
+        } catch (e: Exception) {
+            promise.reject("ERR_BATTERY_OPT_CHECK", e)
+        }
+    }
     // --- Permission checks ----------------------------------------------------
 
     @ReactMethod

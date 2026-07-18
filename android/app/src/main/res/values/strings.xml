@@ -1,4 +1,5 @@
 <resources>
   <string name="accessibility_service_description">Tracks scroll and screen-change events in short-form video apps to count videos watched. No screen content, text, or images are read or stored.</string>
   <string name="app_name">ScrollTracker</string>
+  <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
 </resources>

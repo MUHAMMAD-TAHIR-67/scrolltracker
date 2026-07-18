@@ -56,12 +56,20 @@ export default function RootLayout() {
           console.warn("[v0] Store init failed:", storeError);
         }
 
-        // Don't auto-start tracking service - let user grant permissions first in onboarding
-        // The tracking service will be started manually after permissions are granted
+        // If onboarding was already completed in a previous session, restart
+        // tracking now - onboarding/index.jsx only calls TrackingService.start()
+        // the very first time, so every later app launch needs to do it here.
         try {
           const perms = usePermissionsStore.getState();
           if (!perms.onboardingComplete) {
             // User hasn't completed onboarding yet - don't start tracking
+            useTrackingStore.getState().setTrackingActive(false);
+          } else if (allRequiredPermissionsGranted(perms)) {
+            await TrackingService.start();
+            useTrackingStore.getState().setTrackingActive(true);
+          } else {
+            // Onboarding finished before but a required permission is now
+            // missing (e.g. user revoked Accessibility) - don't start.
             useTrackingStore.getState().setTrackingActive(false);
           }
         } catch (error) {

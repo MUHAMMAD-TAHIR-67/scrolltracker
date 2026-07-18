@@ -3,14 +3,17 @@
     "name": "ScrollTracker",
     "slug": "scrolltracker",
     "version": "1.0.0",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "extra": {
       "router": {},
       "eas": {
         "projectId": "423ada58-0c22-4344-9447-9ffff750156e"
       }
     },
+
     "plugins": [
       "expo-router",
       "expo-sqlite",
@@ -35,8 +38,13 @@
         }
       ]
     ],
+
     "android": {
-      "package": "com.anonymous.scrolltracker"
+      "package": "com.anonymous.scrolltracker",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     }
   }
 }
