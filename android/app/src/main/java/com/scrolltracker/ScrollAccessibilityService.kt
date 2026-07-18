@@ -29,6 +29,11 @@ import android.util.Log
  * dwell time, loop detection) happens in JS (SessionEstimator.ts) so the
  * heuristic can be iterated on without a native rebuild. This service's job
  * is only to forward candidate structural signals cheaply.
+ * 
+ * LIFECYCLE NOTE: This service runs independently of the app UI. Once enabled
+ * by the user, it continues receiving events even when the app is backgrounded
+ * or the UI is closed. Events are buffered in ScrollEventBus (bounded ring buffer)
+ * and persisted to SQLite when the JS runtime is next alive (via drainPendingEvents).
  */
 class ScrollAccessibilityService : AccessibilityService() {
 
@@ -115,5 +120,23 @@ class ScrollAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i("ScrollTracker", "ScrollAccessibilityService connected")
+        
+        // Ensure the foreground service is running to keep the process alive
+        try {
+            val intent = android.content.Intent(this, TrackerForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                @Suppress("DEPRECATION")
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.w("ScrollTracker", "Failed to start foreground service", e)
+        }
+    }
+    
+    override fun onDestroy() {
+        Log.i("ScrollTracker", "ScrollAccessibilityService destroyed")
+        super.onDestroy()
     }
 }
