@@ -5,6 +5,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { CartesianChart, Bar } from "victory-native";
 import { getChartData, getPlatformBreakdown } from "@/features/analytics/utils/aggregations";
 import { exportSessionsCsv } from "@/features/analytics/utils/csvExport";
+import { Card } from "@/shared/components/Card";
+import { StatCard } from "@/shared/components/StatCard";
 
 export default function AnalyticsScreen() {
   const [range, setRange] = useState("week");
@@ -42,8 +44,12 @@ export default function AnalyticsScreen() {
       <ScrollView className="px-6 pt-2">
         {/* Header */}
         <View className="mb-6 mt-2">
-          <Text className="text-onBackground text-headline-large font-normal mb-1">Analytics</Text>
-          <Text className="text-onSurfaceVariant text-body-medium">Understand your usage patterns</Text>
+          <Text className="text-onBackground text-display-small font-normal mb-1">
+            Analytics
+          </Text>
+          <Text className="text-onSurfaceVariant text-body-medium">
+            Understand your usage patterns
+          </Text>
         </View>
 
         {/* Time Range Selector */}
@@ -55,11 +61,17 @@ export default function AnalyticsScreen() {
             <Pressable
               key={option.key}
               onPress={() => setRange(option.key)}
-              className={`px-5 py-2.5 rounded-full ${range === option.key ? "bg-primaryContainer" : ""}`}
+              className={`px-5 py-2.5 rounded-full ${
+                range === option.key ? "bg-primaryContainer" : ""
+              }`}
               accessibilityRole="tab"
               accessibilityState={{ selected: range === option.key }}
             >
-              <Text className={`${range === option.key ? "text-onPrimaryContainer" : "text-onSurfaceVariant"} text-label-large font-medium capitalize`}>
+              <Text 
+                className={`${
+                  range === option.key ? "text-onPrimaryContainer" : "text-onSurfaceVariant"
+                } text-label-large font-medium capitalize`}
+              >
                 {option.label}
               </Text>
             </Pressable>
@@ -68,19 +80,19 @@ export default function AnalyticsScreen() {
 
         {/* Summary Stats Cards */}
         <View className="flex-row gap-3 mb-6">
-          <SummaryStat 
+          <StatCard 
             icon="eye-outline" 
             label="Total Videos" 
             value={String(totalVideos)} 
             color="#80DEEA"
           />
-          <SummaryStat 
+          <StatCard 
             icon="clock-outline" 
             label="Time Spent" 
             value={`${totalMinutes}m`} 
             color="#D0BCFF"
           />
-          <SummaryStat 
+          <StatCard 
             icon="timer-outline" 
             label="Avg Watch" 
             value={`${Math.round(avgWatchMs / 1000)}s`} 
@@ -89,11 +101,7 @@ export default function AnalyticsScreen() {
         </View>
 
         {/* Chart Section */}
-        <View className="bg-surfaceContainerHigh rounded-3xl p-5 mb-6">
-          <View className="flex-row items-center mb-4">
-            <MaterialCommunityIcons name="chart-bar" size={20} color="#D0BCFF" style={{ marginRight: 8 }} />
-            <Text className="text-onSurfaceVariant text-title-small font-medium">Videos per Day</Text>
-          </View>
+        <Card title="Videos per Day" icon="chart-bar" iconColor="#D0BCFF">
           <View style={{ height: 220 }}>
             {chartData.length > 0 ? (
               <CartesianChart
@@ -119,26 +127,37 @@ export default function AnalyticsScreen() {
               </View>
             )}
           </View>
-        </View>
+        </Card>
 
         {/* Platform Breakdown */}
         <View className="mb-6">
-          <Text className="text-onSurfaceVariant text-title-medium font-medium mb-4">By Platform</Text>
+          <Text className="text-onSurfaceVariant text-title-medium font-medium mb-4">
+            By Platform
+          </Text>
           {breakdown.map((item) => (
             <View
               key={item.platform.key}
               className="flex-row items-center justify-between bg-surfaceContainer rounded-2xl p-4 mb-3 border border-outlineVariant"
+              accessibilityRole="summary"
+              accessibilityLabel={`${item.platform.displayName}: ${item.totalVideos} videos, ${item.percentOfTotal}% of total`}
             >
               <View className="flex-row items-center gap-3">
                 <View 
                   className="w-4 h-4 rounded-full" 
-                  style={{ backgroundColor: item.platform.colorHex }} 
+                  style={{ backgroundColor: item.platform.colorHex }}
+                  accessibilityHidden={true}
                 />
-                <Text className="text-onSurface text-body-large">{item.platform.displayName}</Text>
+                <Text className="text-onSurface text-body-large">
+                  {item.platform.displayName}
+                </Text>
               </View>
               <View className="items-end">
-                <Text className="text-onSurface text-title-medium font-medium">{item.totalVideos} videos</Text>
-                <Text className="text-onSurfaceVariant text-label-small">{item.percentOfTotal}% of total</Text>
+                <Text className="text-onSurface text-title-medium font-medium">
+                  {item.totalVideos} videos
+                </Text>
+                <Text className="text-onSurfaceVariant text-label-small">
+                  {item.percentOfTotal}% of total
+                </Text>
               </View>
             </View>
           ))}
@@ -159,16 +178,5 @@ export default function AnalyticsScreen() {
         </Pressable>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-/** @param {{icon: string, label: string, value: string, color: string}} props */
-function SummaryStat({ icon, label, value, color }) {
-  return (
-    <View className="flex-1 bg-surfaceContainerHigh rounded-2xl p-4 border border-outlineVariant">
-      <MaterialCommunityIcons name={icon} size={24} color={color} style={{ marginBottom: 8 }} />
-      <Text className="text-onSurface text-headline-small font-light">{value}</Text>
-      <Text className="text-onSurfaceVariant text-label-small mt-1">{label}</Text>
-    </View>
   );
 }

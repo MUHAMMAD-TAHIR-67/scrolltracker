@@ -138,7 +138,9 @@ export default function OnboardingScreen() {
               <View className="flex-row items-center gap-3">
                 <MaterialCommunityIcons name="power-plug-outline" size={24} color="#D0BCFF" />
                 <View className="flex-1">
-                  <Text className="text-onSurface text-body-large">Xiaomi / Vivo / Oppo / Huawei</Text>
+                  <Text className="text-onSurface text-body-large">
+                    Xiaomi / Vivo / Oppo / Huawei
+                  </Text>
                   <Text className="text-onSurfaceVariant text-body-small mt-0.5">
                     Enable autostart if tracking stops in background
                   </Text>

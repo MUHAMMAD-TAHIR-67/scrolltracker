@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTrackingStore, selectDisplayCount } from "@/features/tracking/store/trackingStore";
 import { useGoalsStore, goalProgress } from "@/features/goals/store/goalsStore";
 import { ProgressBar } from "@/shared/components/ProgressBar";
+import { Card } from "@/shared/components/Card";
 
 export default function GoalsScreen() {
   const trackingState = useTrackingStore();
@@ -36,19 +37,23 @@ export default function GoalsScreen() {
       <ScrollView className="px-6 pt-2">
         {/* Header */}
         <View className="mb-6 mt-2">
-          <Text className="text-onBackground text-headline-large font-normal mb-1">Daily Goals</Text>
-          <Text className="text-onSurfaceVariant text-body-medium">Set limits to stay mindful of your usage</Text>
+          <Text className="text-onBackground text-display-small font-normal mb-1">
+            Daily Goals
+          </Text>
+          <Text className="text-onSurfaceVariant text-body-medium">
+            Set limits to stay mindful of your usage
+          </Text>
         </View>
 
         {/* Info Card */}
-        <View className="bg-primaryContainer/20 rounded-2xl p-4 mb-6 border border-outlineVariant">
-          <View className="flex-row items-center gap-3 mb-2">
-            <MaterialCommunityIcons name="information-outline" size={24} color="#D0BCFF" />
-            <Text className="text-onSurfaceVariant text-title-small font-medium">How it works</Text>
+        <View className="bg-primaryContainer/20 rounded-2xl p-4 mb-6 border border-outlineVariant flex-row items-start gap-3">
+          <MaterialCommunityIcons name="information-outline" size={24} color="#D0BCFF" style={{ marginTop: 2 }} />
+          <View className="flex-1">
+            <Text className="text-onSurfaceVariant text-title-small font-medium mb-1">How it works</Text>
+            <Text className="text-onSurfaceVariant text-body-small leading-5">
+              Set a daily video-count limit per platform. Focus Mode will alert you when you go over your limit.
+            </Text>
           </View>
-          <Text className="text-onSurfaceVariant text-body-small leading-5">
-            Set a daily video-count limit per platform. Focus Mode will alert you when you go over your limit.
-          </Text>
         </View>
 
         {/* Platform Goals */}
@@ -62,14 +67,19 @@ export default function GoalsScreen() {
             <View
               key={platform.key}
               className="bg-surfaceContainer rounded-2xl p-5 mb-3 border border-outlineVariant"
+              accessibilityRole="summary"
+              accessibilityLabel={`${platform.displayName}: ${goal ? `${videoCount} of ${goal.limitValue} videos` : 'no limit set'}`}
             >
               <View className="flex-row justify-between items-center mb-4">
                 <View className="flex-row items-center gap-3">
                   <View 
                     className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: platform.colorHex }} 
+                    style={{ backgroundColor: platform.colorHex }}
+                    accessibilityHidden={true}
                   />
-                  <Text className="text-onSurface text-title-medium font-medium">{platform.displayName}</Text>
+                  <Text className="text-onSurface text-title-medium font-medium">
+                    {platform.displayName}
+                  </Text>
                 </View>
                 {!isEditing && (
                   <Pressable 
@@ -123,7 +133,7 @@ export default function GoalsScreen() {
                       {progress > 1 ? "Over limit" : `${Math.round(progress * 100)}% of daily limit`}
                     </Text>
                     <Text className={`text-label-large font-medium ${progress > 1 ? "text-error" : "text-success"}`}>
-                      {Math.round((videoCount / goal.limitValue) * 100)}%
+                      {Math.min(Math.round((videoCount / goal.limitValue) * 100), 100)}%
                     </Text>
                   </View>
                 </>

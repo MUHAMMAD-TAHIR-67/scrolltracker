@@ -8,11 +8,11 @@ const PRESETS_MIN = [15, 30, 60, 120];
 
 export default function FocusScreen() {
   const { isActive, remainingMs, plannedMs, start, end } = useFocusStore();
-
+  
   const minutes = Math.floor(remainingMs / 60_000);
   const seconds = Math.floor((remainingMs % 60_000) / 1000);
   const progress = plannedMs > 0 ? 1 - remainingMs / plannedMs : 0;
-
+  
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-1 px-6 items-center justify-center">
@@ -48,7 +48,9 @@ export default function FocusScreen() {
         ) : (
           <>
             <MaterialCommunityIcons name="brain" size={48} color="#D0BCFF" style={{ marginBottom: 24 }} />
-            <Text className="text-onBackground text-headline-medium font-normal mb-2 text-center">Focus Mode</Text>
+            <Text className="text-onBackground text-headline-medium font-normal mb-2 text-center">
+              Focus Mode
+            </Text>
             <Text className="text-onSurfaceVariant text-body-medium text-center mb-10 px-6">
               Start a session and get alerted the moment you open Reels, Shorts, TikTok, or Spotlight.
             </Text>

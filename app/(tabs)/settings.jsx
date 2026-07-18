@@ -11,7 +11,7 @@ const THRESHOLD_OPTIONS = [10, 20, 30, 45, 60];
 export default function SettingsScreen() {
   const settings = useSettingsStore();
   const permissions = usePermissionsStore();
-
+  
   useEffect(() => {
     settings.load();
     permissions.refresh();
@@ -22,13 +22,19 @@ export default function SettingsScreen() {
       <ScrollView className="px-6 pt-2">
         {/* Header */}
         <View className="mb-6 mt-2">
-          <Text className="text-onBackground text-headline-large font-normal mb-1">Settings</Text>
-          <Text className="text-onSurfaceVariant text-body-medium">Manage permissions and preferences</Text>
+          <Text className="text-onBackground text-display-small font-normal mb-1">
+            Settings
+          </Text>
+          <Text className="text-onSurfaceVariant text-body-medium">
+            Manage permissions and preferences
+          </Text>
         </View>
 
         {/* Permissions Section */}
         <View className="mb-6">
-          <Text className="text-onSurfaceVariant text-title-small font-medium uppercase mb-3 tracking-wide">Permissions</Text>
+          <Text className="text-onSurfaceVariant text-title-small font-medium uppercase mb-3 tracking-wide">
+            Permissions
+          </Text>
           
           <StatusRow
             label="Accessibility Service"
@@ -63,7 +69,9 @@ export default function SettingsScreen() {
             <View className="flex-row items-center gap-3">
               <MaterialCommunityIcons name="power-plug-outline" size={24} color="#D0BCFF" />
               <View className="flex-1">
-                <Text className="text-onSurface text-body-large">Xiaomi / Vivo / Oppo / Huawei</Text>
+                <Text className="text-onSurface text-body-large">
+                  Xiaomi / Vivo / Oppo / Huawei
+                </Text>
                 <Text className="text-onSurfaceVariant text-body-small mt-0.5">
                   Enable autostart if tracking stops in background
                 </Text>
@@ -75,7 +83,9 @@ export default function SettingsScreen() {
 
         {/* Notifications Section */}
         <View className="mb-6">
-          <Text className="text-onSurfaceVariant text-title-small font-medium uppercase mb-3 tracking-wide">Notifications</Text>
+          <Text className="text-onSurfaceVariant text-title-small font-medium uppercase mb-3 tracking-wide">
+            Notifications
+          </Text>
           
           <View className="bg-surfaceContainer rounded-2xl p-4 mb-3 border border-outlineVariant">
             <View className="flex-row justify-between items-center mb-1">
@@ -90,6 +100,7 @@ export default function SettingsScreen() {
                 onValueChange={settings.toggleDailyLimitNotifications}
                 trackColor={{ false: "#49454F", true: "#D0BCFF" }}
                 thumbColor={settings.dailyLimitNotificationsEnabled ? "#381E72" : "#CAC4D0"}
+                accessibilityLabel="Toggle daily limit alerts"
               />
             </View>
           </View>
@@ -107,6 +118,7 @@ export default function SettingsScreen() {
                 onValueChange={settings.toggleExcessiveScrollNotifications}
                 trackColor={{ false: "#49454F", true: "#D0BCFF" }}
                 thumbColor={settings.excessiveScrollNotificationsEnabled ? "#381E72" : "#CAC4D0"}
+                accessibilityLabel="Toggle excessive scrolling alerts"
               />
             </View>
             <View className="flex-row flex-wrap gap-2 mt-3">
@@ -121,6 +133,7 @@ export default function SettingsScreen() {
                   }`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: settings.excessiveScrollThresholdMin === min }}
+                  accessibilityLabel={`${min} minutes threshold`}
                 >
                   <Text className={`${
                     settings.excessiveScrollThresholdMin === min 
@@ -137,7 +150,9 @@ export default function SettingsScreen() {
 
         {/* Data Section */}
         <View className="mb-6">
-          <Text className="text-onSurfaceVariant text-title-small font-medium uppercase mb-3 tracking-wide">Data</Text>
+          <Text className="text-onSurfaceVariant text-title-small font-medium uppercase mb-3 tracking-wide">
+            Data
+          </Text>
           
           <Pressable
             onPress={() => exportSessionsCsv()}
@@ -146,7 +161,9 @@ export default function SettingsScreen() {
             accessibilityLabel="Export statistics as CSV file"
           >
             <MaterialCommunityIcons name="file-export-outline" size={24} color="#80DEEA" />
-            <Text className="text-onSurface text-body-large flex-1">Export statistics as CSV</Text>
+            <Text className="text-onSurface text-body-large flex-1">
+              Export statistics as CSV
+            </Text>
             <MaterialCommunityIcons name="chevron-right" size={24} color="#938F99" />
           </Pressable>
         </View>
