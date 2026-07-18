@@ -153,12 +153,12 @@ class ScrollAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.w("ScrollTracker", "Accessibility service interrupted by the system")
+        if (BuildConfig.DEBUG) Log.w("ScrollTracker", "Accessibility service interrupted by the system")
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.i("ScrollTracker", "ScrollAccessibilityService connected")
+        if (BuildConfig.DEBUG) Log.i("ScrollTracker", "ScrollAccessibilityService connected")
         
         // Ensure the ForegroundService is running to keep our process alive
         // This is critical for tracking to work when the UI is closed
@@ -176,7 +176,7 @@ class ScrollAccessibilityService : AccessibilityService() {
     
     override fun onDestroy() {
         super.onDestroy()
-        Log.i("ScrollTracker", "ScrollAccessibilityService destroyed")
+        if (BuildConfig.DEBUG) Log.i("ScrollTracker", "ScrollAccessibilityService destroyed")
         // Clear all states on destroy
         AppScreenStateTracker.clearAllStates()
         packageStates.clear()

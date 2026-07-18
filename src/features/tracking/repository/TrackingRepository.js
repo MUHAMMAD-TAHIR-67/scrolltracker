@@ -29,29 +29,46 @@ export class TrackingRepository {
    */
   async openSession(platformId, startedAt, source) {
     const db = await getDatabase();
+    if (!db) {
+      console.warn("[v0] Database not available for openSession");
+      return -1;
+    }
     const dayBucket = format(startedAt, "yyyy-MM-dd");
     
-    return await withTransaction(db, async (txDb) => {
-      // Check if an active session already exists for this platform today
-      // Prevents duplicate sessions from concurrent calls
-      const existing = await txDb.getFirstAsync(
-        `SELECT id FROM sessions WHERE platform_id = ? AND day_bucket = ? AND ended_at IS NULL LIMIT 1;`,
-        [platformId, dayBucket]
-      );
-      
-      if (existing) {
-        console.log("[v0] Session already exists for platform, reusing existing:", existing.id);
-        return existing.id;
+    let retries = 0;
+    while (retries < 2) {
+      try {
+        return await withTransaction(db, async (txDb) => {
+          // Check if an active session already exists for this platform today
+          // Prevents duplicate sessions from concurrent calls
+          const existing = await txDb.getFirstAsync(
+            `SELECT id FROM sessions WHERE platform_id = ? AND day_bucket = ? AND ended_at IS NULL LIMIT 1;`,
+            [platformId, dayBucket]
+          );
+          
+          if (existing) {
+            console.log("[v0] Session already exists for platform, reusing existing:", existing.id);
+            return existing.id;
+          }
+          
+          // Create new session
+          const result = await txDb.runAsync(
+            `INSERT INTO sessions (platform_id, started_at, video_count, source, day_bucket)
+             VALUES (?, ?, 0, ?, ?);`,
+            [platformId, startedAt, source, dayBucket]
+          );
+          return result.lastInsertRowId;
+        });
+      } catch (error) {
+        retries++;
+        if (retries >= 2) {
+          console.error("[v0] openSession failed after retry:", error?.message);
+          return -1;
+        }
+        console.warn("[v0] openSession failed, retrying...", error?.message);
       }
-      
-      // Create new session
-      const result = await txDb.runAsync(
-        `INSERT INTO sessions (platform_id, started_at, video_count, source, day_bucket)
-         VALUES (?, ?, 0, ?, ?);`,
-        [platformId, startedAt, source, dayBucket]
-      );
-      return result.lastInsertRowId;
-    });
+    }
+    return -1;
   }
 
   /**
@@ -65,53 +82,86 @@ export class TrackingRepository {
    */
   async appendVideoEvent(sessionId, occurredAt, confidence, detection, options = {}) {
     const db = await getDatabase();
+    if (!db) {
+      console.warn("[v0] Database not available for appendVideoEvent");
+      return -1;
+    }
     const { swipeDirection = null, appScreenState = null, detectionSource = 'heuristic' } = options;
     
-    return await withTransaction(db, async (txDb) => {
-      // Check for duplicate: same session, within 1 second window
-      // Prevents double-counting from concurrent event processing
-      const recent = await txDb.getFirstAsync(
-        `SELECT id FROM video_events WHERE session_id = ? AND occurred_at >= ? LIMIT 1;`,
-        [sessionId, occurredAt - 1000]
-      );
-      
-      if (recent) {
-        console.log("[v0] Duplicate video event detected, skipping:", sessionId, occurredAt);
-        return recent.id; // Return existing event ID
+    let retries = 0;
+    while (retries < 2) {
+      try {
+        return await withTransaction(db, async (txDb) => {
+          // Check for duplicate: same session, within 1 second window
+          // Prevents double-counting from concurrent event processing
+          const recent = await txDb.getFirstAsync(
+            `SELECT id FROM video_events WHERE session_id = ? AND occurred_at >= ? LIMIT 1;`,
+            [sessionId, occurredAt - 1000]
+          );
+          
+          if (recent) {
+            console.log("[v0] Duplicate video event detected, skipping:", sessionId, occurredAt);
+            return recent.id; // Return existing event ID
+          }
+          
+          // Insert new event
+          const result = await txDb.runAsync(
+            `INSERT INTO video_events (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source)
+             VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            [sessionId, occurredAt, confidence, detection, swipeDirection, appScreenState, detectionSource]
+          );
+          
+          // Increment video count for session (atomic with event insert)
+          await txDb.runAsync(`UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;`, [sessionId]);
+          
+          return result.lastInsertRowId;
+        });
+      } catch (error) {
+        retries++;
+        if (retries >= 2) {
+          console.error("[v0] appendVideoEvent failed after retry:", error?.message);
+          return -1;
+        }
+        console.warn("[v0] appendVideoEvent failed, retrying...", error?.message);
       }
-      
-      // Insert new event
-      const result = await txDb.runAsync(
-        `INSERT INTO video_events (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-        [sessionId, occurredAt, confidence, detection, swipeDirection, appScreenState, detectionSource]
-      );
-      
-      // Increment video count for session (atomic with event insert)
-      await txDb.runAsync(`UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;`, [sessionId]);
-      
-      return result.lastInsertRowId;
-    });
+    }
+    return -1;
   }
 
   async closeSession(sessionId, endedAt) {
     const db = await getDatabase();
+    if (!db) {
+      console.warn("[v0] Database not available for closeSession");
+      return;
+    }
     
-    return await withTransaction(db, async (txDb) => {
-      const session = await txDb.getFirstAsync("SELECT * FROM sessions WHERE id = ?;", [sessionId]);
-      if (!session) return;
-      
-      const durationMs = endedAt - session.started_at;
-      
-      // Update session with end time (atomic)
-      await txDb.runAsync(
-        `UPDATE sessions SET ended_at = ?, duration_ms = ? WHERE id = ?;`,
-        [endedAt, durationMs, sessionId]
-      );
-      
-      // Recompute daily stats within same transaction
-      await this._recomputeDailyStatTx(txDb, session.platform_id, session.day_bucket);
-    });
+    let retries = 0;
+    while (retries < 2) {
+      try {
+        return await withTransaction(db, async (txDb) => {
+          const session = await txDb.getFirstAsync("SELECT * FROM sessions WHERE id = ?;", [sessionId]);
+          if (!session) return;
+          
+          const durationMs = endedAt - session.started_at;
+          
+          // Update session with end time (atomic)
+          await txDb.runAsync(
+            `UPDATE sessions SET ended_at = ?, duration_ms = ? WHERE id = ?;`,
+            [endedAt, durationMs, sessionId]
+          );
+          
+          // Recompute daily stats within same transaction
+          await this._recomputeDailyStatTx(txDb, session.platform_id, session.day_bucket);
+        });
+      } catch (error) {
+        retries++;
+        if (retries >= 2) {
+          console.error("[v0] closeSession failed after retry:", error?.message);
+          return;
+        }
+        console.warn("[v0] closeSession failed, retrying...", error?.message);
+      }
+    }
   }
 
   /** Recomputes the daily_stats rollup row for a platform/day from raw sessions. */

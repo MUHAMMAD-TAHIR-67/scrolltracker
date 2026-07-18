@@ -46,6 +46,13 @@ class ScrollAccessibilityService : AccessibilityService() {
         "com.snapchat.android"
     )
 
+    // Only process these event types - skip everything else early to save CPU/battery
+    private val allowedEventTypes = setOf(
+        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+        AccessibilityEvent.TYPE_VIEW_SCROLLED,
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+    )
+
     private var lastForegroundPackage: String? = null
     
     // Track last scroll deltas to detect direction changes across event types
@@ -53,6 +60,10 @@ class ScrollAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        
+        // Early exit: skip event types we don't use before any object allocation
+        if (event.eventType !in allowedEventTypes) return
+        
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in trackedPackages) return
 
@@ -137,11 +148,15 @@ class ScrollAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.w("ScrollTracker", "Accessibility service interrupted by the system")
+        if (BuildConfig.DEBUG) {
+            Log.w("ScrollTracker", "Accessibility service interrupted by the system")
+        }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.i("ScrollTracker", "ScrollAccessibilityService connected")
+        if (BuildConfig.DEBUG) {
+            Log.i("ScrollTracker", "ScrollAccessibilityService connected")
+        }
     }
 }

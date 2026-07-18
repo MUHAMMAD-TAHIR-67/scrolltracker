@@ -20,13 +20,17 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) : Corouti
 
     override suspend fun doWork(): Result {
         return try {
-            android.util.Log.d("BackgroundSyncWorker", "Starting background sync")
+            if (BuildConfig.DEBUG) {
+                android.util.Log.d("BackgroundSyncWorker", "Starting background sync")
+            }
             
             val prefs = applicationContext.getSharedPreferences("scrolltracker_prefs", Context.MODE_PRIVATE)
             val wasTracking = prefs.getBoolean("tracking_active", false)
             
             if (!wasTracking) {
-                android.util.Log.d("BackgroundSyncWorker", "Tracking not active, skipping sync")
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.d("BackgroundSyncWorker", "Tracking not active, skipping sync")
+                }
                 return Result.success()
             }
             
@@ -46,7 +50,9 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) : Corouti
             try {
                 ScrollEventBus.drainPending().let { events ->
                     if (events.isNotEmpty()) {
-                        android.util.Log.d("BackgroundSyncWorker", "Drained ${events.size} events from buffer")
+                        if (BuildConfig.DEBUG) {
+                            android.util.Log.d("BackgroundSyncWorker", "Drained ${events.size} events from buffer")
+                        }
                         // Events are buffered; they will be written to DB when JS restarts
                         // This prevents data loss by keeping events in memory until JS is available
                     }
@@ -55,7 +61,9 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) : Corouti
                 android.util.Log.w("BackgroundSyncWorker", "Error draining events", e)
             }
             
-            android.util.Log.d("BackgroundSyncWorker", "Background sync completed successfully")
+            if (BuildConfig.DEBUG) {
+                android.util.Log.d("BackgroundSyncWorker", "Background sync completed successfully")
+            }
             Result.success()
         } catch (e: Exception) {
             android.util.Log.e("BackgroundSyncWorker", "Background sync failed", e)

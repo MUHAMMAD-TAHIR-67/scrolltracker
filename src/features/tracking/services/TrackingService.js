@@ -22,6 +22,9 @@ function canonicalPackageName(packageName) {
   return PACKAGE_ALIASES[packageName] ?? packageName;
 }
 
+// Debounce window for app_foreground events (ms)
+const FOREGROUND_DEBOUNCE_MS = 2000;
+
 /**
  * App-side orchestrator. Subscribes to the native event emitter, feeds events
  * through SessionEstimator, persists results via the repository, and updates
@@ -34,10 +37,9 @@ function canonicalPackageName(packageName) {
  * All actual video-count persistence happens here, in JS, and only while
  * this runtime is alive - if the OS kills/freezes the process (e.g.
  * aggressive OEM battery managers), events pile up in the native ring
- * buffer (ScrollEventBus, capped at 500) and are only recovered via
- * drainPendingEvents() the next time this runtime starts. If you see
- * consistently missing videos even with all packages/aliases mapped
- * correctly, check whether the process is being killed while backgrounded.
+ * buffer (ScrollEventBus, capped at 2000) and are only recovered via
+ * drainPendingEvents() the next time this runtime starts. Native-side
+ * persistence in ScrollEventBus.kt now survives JS death and merges on restart.
  */
 class TrackingServiceImpl {
   #estimator = new SessionEstimator();
@@ -45,6 +47,9 @@ class TrackingServiceImpl {
   #sweepInterval = null;
   #platformsByPackage = new Map();
   #openSessionIds = new Map(); // packageName -> sessions.id
+  #lastForegroundTime = new Map(); // packageName -> last foreground timestamp for debouncing
+  #errorCount = 0;
+  #MAX_ERROR_COUNT = 10;
 
   async start() {
     try {
@@ -71,20 +76,22 @@ class TrackingServiceImpl {
         const pending = await ScrollTrackerNative?.drainPendingEvents?.();
         if (pending && Array.isArray(pending)) {
           for (const evt of pending) {
-            if (evt) await this.#handleEvent(evt).catch((err) => console.warn("[v0] Error handling pending event:", err));
+            if (evt) await this.#handleEvent(evt).catch((err) => this.#logError("Error handling pending event", err));
           }
         }
+        // Reset native state after successful merge to avoid double-counting
+        await ScrollTrackerNative?.resetNativeTracking?.().catch(() => {});
       } catch (e) {
         console.warn("[v0] Failed to drain pending events:", e?.message);
       }
 
       this.#unsubscribe = subscribeToScrollEvents((evt) => {
         if (evt && this.#unsubscribe !== null) {
-          this.#handleEvent(evt).catch((err) => console.warn("[v0] Error handling event:", err));
+          this.#handleEvent(evt).catch((err) => this.#logError("Error handling event", err));
         }
       });
 
-      this.#sweepInterval = setInterval(() => this.#sweep().catch((err) => console.warn("[v0] Sweep error:", err)), 10_000);
+      this.#sweepInterval = setInterval(() => this.#sweep().catch((err) => this.#logError("Sweep error", err)), 10_000);
       console.log("[v0] TrackingService started successfully");
     } catch (error) {
       console.error("[v0] Failed to start TrackingService:", error?.message);
@@ -133,17 +140,24 @@ class TrackingServiceImpl {
     if (!platform) return; // not a tracked app
 
     try {
-      if (
-        (event.eventType === "app_foreground" || event.eventType === "window_state_changed") &&
-        !this.#openSessionIds.has(event.packageName)
-      ) {
-        const sessionId = await trackingRepository?.openSession?.(platform.id, event.timestamp, "accessibility");
-        if (sessionId) {
-          this.#openSessionIds.set(event.packageName, sessionId);
+      // Debounce app_foreground to prevent duplicate sessions
+      if (event.eventType === "app_foreground" || event.eventType === "window_state_changed") {
+        const now = event.timestamp;
+        const lastTime = this.#lastForegroundTime.get(event.packageName) || 0;
+        if (now - lastTime < FOREGROUND_DEBOUNCE_MS) {
+          return; // Skip duplicate foreground event
+        }
+        this.#lastForegroundTime.set(event.packageName, now);
+        
+        if (!this.#openSessionIds.has(event.packageName)) {
+          const sessionId = await trackingRepository?.openSession?.(platform.id, event.timestamp, "accessibility");
+          if (sessionId) {
+            this.#openSessionIds.set(event.packageName, sessionId);
 
-          const focusState = useFocusStore?.getState?.();
-          if (focusState?.isActive) {
-            notifyFocusModeBreach(platform.displayName).catch(() => {});
+            const focusState = useFocusStore?.getState?.();
+            if (focusState?.isActive) {
+              notifyFocusModeBreach(platform.displayName).catch(() => {});
+            }
           }
         }
       }
@@ -168,9 +182,22 @@ class TrackingServiceImpl {
           useTrackingStore?.getState?.()?.incrementLiveCount?.(platform.key);
         }
       }
+      
+      // Reset error count on successful event processing
+      this.#errorCount = 0;
     } catch (error) {
-      console.warn("[v0] Error handling event:", error?.message);
+      this.#logError("Error handling event", error);
     }
+  }
+  
+  /** Log errors with a circuit breaker to prevent infinite error loops */
+  #logError(message, error) {
+    this.#errorCount++;
+    if (this.#errorCount > this.#MAX_ERROR_COUNT) {
+      console.error("[v0] Too many errors, tracking may be compromised:", this.#errorCount);
+      return;
+    }
+    console.warn(`[v0] ${message}:`, error?.message);
   }
 
   async #sweep() {
@@ -192,12 +219,12 @@ class TrackingServiceImpl {
             this.#openSessionIds.delete(c.packageName);
             useTrackingStore?.getState?.()?.refreshToday?.();
           } catch (error) {
-            console.warn("[v0] Error closing session:", error?.message);
+            this.#logError("Error closing session", error);
           }
         }
       }
     } catch (error) {
-      console.warn("[v0] Sweep error:", error?.message);
+      this.#logError("Sweep error", error);
     }
   }
 }
