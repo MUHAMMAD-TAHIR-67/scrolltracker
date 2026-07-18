@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { CartesianChart, Bar } from "victory-native";
 import { getChartData, getPlatformBreakdown } from "@/features/analytics/utils/aggregations";
 import { exportSessionsCsv } from "@/features/analytics/utils/csvExport";
@@ -103,10 +104,11 @@ export default function AnalyticsScreen() {
         <Pressable
           onPress={onExport}
           disabled={exporting}
-          className="bg-surfaceAlt rounded-2xl py-4 items-center my-6"
+          className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 my-6 active:opacity-80"
         >
+          <MaterialCommunityIcons name="cloud-download" size={18} color="white" />
           <Text className="text-white font-semibold">
-            {exporting ? "Exporting..." : "Export statistics as CSV"}
+            {exporting ? "Exporting..." : "Export as CSV"}
           </Text>
         </Pressable>
       </ScrollView>

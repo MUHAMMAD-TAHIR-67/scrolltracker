@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { View, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusStore } from "@/features/focus/services/FocusModeService";
 
 const PRESETS_MIN = [15, 30, 60, 120];
@@ -17,6 +18,7 @@ export default function FocusScreen() {
       <View className="flex-1 px-6 items-center justify-center">
         {isActive ? (
           <>
+            <MaterialCommunityIcons name="timer" size={48} color="#6366F1" style={{ marginBottom: 16 }} />
             <View className="w-56 h-56 rounded-full border-8 border-surfaceAlt items-center justify-center mb-8">
               <View
                 className="absolute w-56 h-56 rounded-full border-8 border-accent"
@@ -35,13 +37,15 @@ export default function FocusScreen() {
             </Text>
             <Pressable
               onPress={() => end(true)}
-              className="bg-danger/20 border border-danger rounded-2xl px-8 py-3"
+              className="bg-danger/10 border border-danger rounded-lg px-6 py-3 flex-row items-center gap-2 active:opacity-80"
             >
+              <MaterialCommunityIcons name="stop-circle" size={16} color="#EF4444" />
               <Text className="text-danger font-semibold">End Focus Session</Text>
             </Pressable>
           </>
         ) : (
           <>
+            <MaterialCommunityIcons name="brain" size={48} color="#6366F1" style={{ marginBottom: 16 }} />
             <Text className="text-white text-2xl font-bold mb-2">Focus Mode</Text>
             <Text className="text-muted text-center mb-8 px-4">
               Start a session and get alerted the moment you open Reels, Shorts,
@@ -52,10 +56,11 @@ export default function FocusScreen() {
                 <Pressable
                   key={min}
                   onPress={() => start(min * 60_000)}
-                  className="bg-surface border border-surfaceAlt rounded-2xl px-6 py-4 w-28 items-center"
+                  className="bg-surface border border-surfaceAlt rounded-lg px-4 py-3 w-24 items-center active:opacity-80"
                 >
-                  <Text className="text-white text-xl font-bold">{min}</Text>
-                  <Text className="text-muted text-xs">minutes</Text>
+                  <MaterialCommunityIcons name="clock-outline" size={16} color="#14B8A6" style={{ marginBottom: 4 }} />
+                  <Text className="text-white text-lg font-bold">{min}</Text>
+                  <Text className="text-muted text-xs">min</Text>
                 </Pressable>
               ))}
             </View>

@@ -20,26 +20,33 @@ export function PlatformCard({ platform, videoCount, durationMs, goalLimit }) {
   const progress = goalLimit ? videoCount / goalLimit : 0;
 
   return (
-    <View className="bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt">
-      <View className="flex-row justify-between items-center mb-2">
+    <View className="bg-surface rounded-lg p-4 mb-3 border border-surfaceAlt shadow-sm">
+      <View className="flex-row justify-between items-center mb-3">
         <View className="flex-row items-center gap-2">
           <View className="w-3 h-3 rounded-full" style={{ backgroundColor: platform.colorHex }} />
           <Text className="text-white font-semibold text-base">{platform.displayName}</Text>
         </View>
-        <Text className="text-muted text-xs">{formatDuration(durationMs)}</Text>
+        <View className="bg-surfaceAlt rounded-full px-2 py-1">
+          <Text className="text-muted text-xs font-medium">{formatDuration(durationMs)}</Text>
+        </View>
       </View>
 
-      <View className="flex-row items-baseline gap-1 mb-3">
+      <View className="flex-row items-baseline gap-2 mb-3">
         <Text className="text-white text-3xl font-bold">{videoCount}</Text>
-        <Text className="text-muted text-sm">videos today</Text>
+        <Text className="text-muted text-sm">videos</Text>
       </View>
 
       {goalLimit ? (
         <>
           <ProgressBar progress={progress} colorHex={platform.colorHex} />
-          <Text className="text-muted text-xs mt-1">
-            {videoCount} / {goalLimit} daily limit
-          </Text>
+          <View className="flex-row justify-between mt-2">
+            <Text className="text-muted text-xs">
+              {videoCount} / {goalLimit} daily limit
+            </Text>
+            <Text className={`text-xs font-medium ${videoCount >= goalLimit ? "text-danger" : "text-success"}`}>
+              {Math.round((videoCount / goalLimit) * 100)}%
+            </Text>
+          </View>
         </>
       ) : null}
     </View>

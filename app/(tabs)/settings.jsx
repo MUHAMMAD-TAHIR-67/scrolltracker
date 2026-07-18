@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { View, Text, Switch, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSettingsStore } from "@/features/settings/store/settingsStore";
 import { usePermissionsStore } from "@/features/tracking/store/permissionsStore";
 import { exportSessionsCsv } from "@/features/analytics/utils/csvExport";
@@ -113,10 +114,17 @@ function StatusRow({ label, ok, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row justify-between items-center bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt"
+      className="flex-row justify-between items-center bg-surface rounded-lg p-4 mb-3 border border-surfaceAlt active:opacity-80"
     >
       <Text className="text-white">{label}</Text>
-      <Text className={ok ? "text-success" : "text-danger"}>{ok ? "Granted" : "Missing"}</Text>
+      <View className="flex-row items-center gap-1">
+        <MaterialCommunityIcons
+          name={ok ? "check-circle" : "alert-circle"}
+          size={16}
+          color={ok ? "#10B981" : "#EF4444"}
+        />
+        <Text className={ok ? "text-success" : "text-danger"}>{ok ? "Granted" : "Missing"}</Text>
+      </View>
     </Pressable>
   );
 }

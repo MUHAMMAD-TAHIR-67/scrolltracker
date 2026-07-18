@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTrackingStore, selectDisplayCount } from "@/features/tracking/store/trackingStore";
 import { useGoalsStore, goalProgress } from "@/features/goals/store/goalsStore";
 import { ProgressBar } from "@/shared/components/ProgressBar";
@@ -47,16 +48,21 @@ export default function GoalsScreen() {
           return (
             <View
               key={platform.key}
-              className="bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt"
+              className="bg-surface rounded-lg p-4 mb-3 border border-surfaceAlt shadow-sm"
             >
-              <View className="flex-row justify-between items-center mb-2">
+              <View className="flex-row justify-between items-center mb-3">
                 <View className="flex-row items-center gap-2">
                   <View className="w-3 h-3 rounded-full" style={{ backgroundColor: platform.colorHex }} />
                   <Text className="text-white font-semibold">{platform.displayName}</Text>
                 </View>
                 {!isEditing && (
-                  <Pressable onPress={() => startEditing(platform)}>
-                    <Text className="text-accent text-sm">
+                  <Pressable onPress={() => startEditing(platform)} className="flex-row items-center gap-1 active:opacity-60">
+                    <MaterialCommunityIcons 
+                      name={goal ? "pencil" : "plus"} 
+                      size={14} 
+                      color="#14B8A6" 
+                    />
+                    <Text className="text-accent text-sm font-medium">
                       {goal ? "Edit" : "Set limit"}
                     </Text>
                   </Pressable>
@@ -69,15 +75,16 @@ export default function GoalsScreen() {
                     value={draftLimit}
                     onChangeText={setDraftLimit}
                     keyboardType="number-pad"
-                    className="flex-1 bg-surfaceAlt text-white rounded-xl px-3 py-2"
+                    className="flex-1 bg-surfaceAlt text-white rounded-lg px-3 py-2"
                     placeholder="Videos per day"
                     placeholderTextColor="#94A3B8"
                   />
                   <Pressable
                     onPress={() => saveGoal(platform.id)}
-                    className="bg-primary rounded-xl px-4 py-2"
+                    className="bg-primary rounded-lg px-4 py-2 flex-row items-center gap-1 active:opacity-80"
                   >
-                    <Text className="text-white font-medium">Save</Text>
+                    <MaterialCommunityIcons name="check" size={14} color="white" />
+                    <Text className="text-white font-semibold">Save</Text>
                   </Pressable>
                 </View>
               ) : goal ? (

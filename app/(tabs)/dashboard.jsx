@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, RefreshControl } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTrackingStore, selectDisplayCount } from "@/features/tracking/store/trackingStore";
 import { usePermissionsStore, allRequiredPermissionsGranted } from "@/features/tracking/store/permissionsStore";
 import { useGoalsStore, goalProgress } from "@/features/goals/store/goalsStore";
@@ -42,8 +43,9 @@ export default function DashboardScreen() {
         <View className="flex-row justify-between items-center mb-1 mt-2">
           <Text className="text-white text-2xl font-bold">Today</Text>
           {streak > 0 ? (
-            <View className="flex-row items-center bg-surface rounded-full px-3 py-1">
-              <Text className="text-warn text-sm font-semibold">🔥 {streak} day streak</Text>
+            <View className="flex-row items-center bg-surface rounded-full px-3 py-1 gap-1">
+              <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
+              <Text className="text-warn text-sm font-semibold">{streak} day streak</Text>
             </View>
           ) : null}
         </View>
