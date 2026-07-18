@@ -38,76 +38,122 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-bg">
-      <ScrollView className="px-5 pt-2">
-        <Text className="text-white text-2xl font-bold mb-4 mt-2">Analytics</Text>
+    <SafeAreaView className="flex-1 bg-background">
+      <ScrollView className="px-6 pt-2">
+        {/* Header */}
+        <View className="mb-6 mt-2">
+          <Text className="text-onBackground text-headline-large font-normal mb-1">Analytics</Text>
+          <Text className="text-onSurfaceVariant text-body-medium">Understand your usage patterns</Text>
+        </View>
 
-        <View className="flex-row bg-surface rounded-full p-1 mb-5 self-start">
-          {["week", "month"].map((r) => (
+        {/* Time Range Selector */}
+        <View className="bg-surfaceContainer rounded-full p-1 mb-6 self-start flex-row gap-1">
+          {[
+            { key: "week", label: "Week" },
+            { key: "month", label: "Month" },
+          ].map((option) => (
             <Pressable
-              key={r}
-              onPress={() => setRange(r)}
-              className={`px-4 py-2 rounded-full ${range === r ? "bg-primary" : ""}`}
+              key={option.key}
+              onPress={() => setRange(option.key)}
+              className={`px-5 py-2.5 rounded-full ${range === option.key ? "bg-primaryContainer" : ""}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: range === option.key }}
             >
-              <Text className="text-white text-sm capitalize">{r}</Text>
+              <Text className={`${range === option.key ? "text-onPrimaryContainer" : "text-onSurfaceVariant"} text-label-large font-medium capitalize`}>
+                {option.label}
+              </Text>
             </Pressable>
           ))}
         </View>
 
-        <View className="flex-row gap-3 mb-5">
-          <SummaryStat label="Total videos" value={String(totalVideos)} />
-          <SummaryStat label="Time spent" value={`${totalMinutes}m`} />
-          <SummaryStat label="Avg watch" value={`${Math.round(avgWatchMs / 1000)}s`} />
+        {/* Summary Stats Cards */}
+        <View className="flex-row gap-3 mb-6">
+          <SummaryStat 
+            icon="eye-outline" 
+            label="Total Videos" 
+            value={String(totalVideos)} 
+            color="#80DEEA"
+          />
+          <SummaryStat 
+            icon="clock-outline" 
+            label="Time Spent" 
+            value={`${totalMinutes}m`} 
+            color="#D0BCFF"
+          />
+          <SummaryStat 
+            icon="timer-outline" 
+            label="Avg Watch" 
+            value={`${Math.round(avgWatchMs / 1000)}s`} 
+            color="#EFB8C8"
+          />
         </View>
 
-        <Text className="text-white font-semibold mb-2">Videos per day</Text>
-        <View style={{ height: 220 }} className="mb-6 bg-surface rounded-2xl p-3">
-          {chartData.length > 0 ? (
-            <CartesianChart
-              data={chartData}
-              xKey="day"
-              yKeys={["totalVideos"]}
-              domainPadding={{ left: 20, right: 20, top: 20 }}
-              axisOptions={{ tickCount: 5, labelColor: "#94A3B8" }}
-            >
-              {({ points, chartBounds }) => (
-                <Bar
-                  points={points.totalVideos}
-                  chartBounds={chartBounds}
-                  color="#6366F1"
-                  roundedCorners={{ topLeft: 4, topRight: 4 }}
-                />
-              )}
-            </CartesianChart>
-          ) : (
-            <Text className="text-muted text-center mt-16">No data yet</Text>
-          )}
-        </View>
-
-        <Text className="text-white font-semibold mb-2">By platform</Text>
-        {breakdown.map((item) => (
-          <View
-            key={item.platform.key}
-            className="flex-row items-center justify-between bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt"
-          >
-            <View className="flex-row items-center gap-2">
-              <View className="w-3 h-3 rounded-full" style={{ backgroundColor: item.platform.colorHex }} />
-              <Text className="text-white">{item.platform.displayName}</Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-white font-semibold">{item.totalVideos} videos</Text>
-              <Text className="text-muted text-xs">{item.percentOfTotal}% of total</Text>
-            </View>
+        {/* Chart Section */}
+        <View className="bg-surfaceContainerHigh rounded-3xl p-5 mb-6">
+          <View className="flex-row items-center mb-4">
+            <MaterialCommunityIcons name="chart-bar" size={20} color="#D0BCFF" style={{ marginRight: 8 }} />
+            <Text className="text-onSurfaceVariant text-title-small font-medium">Videos per Day</Text>
           </View>
-        ))}
+          <View style={{ height: 220 }}>
+            {chartData.length > 0 ? (
+              <CartesianChart
+                data={chartData}
+                xKey="day"
+                yKeys={["totalVideos"]}
+                domainPadding={{ left: 20, right: 20, top: 20 }}
+                axisOptions={{ tickCount: 5, labelColor: "#938F99" }}
+              >
+                {({ points, chartBounds }) => (
+                  <Bar
+                    points={points.totalVideos}
+                    chartBounds={chartBounds}
+                    color="#D0BCFF"
+                    roundedCorners={{ topLeft: 8, topRight: 8 }}
+                  />
+                )}
+              </CartesianChart>
+            ) : (
+              <View className="flex-1 items-center justify-center">
+                <MaterialCommunityIcons name="chart-bar-off" size={48} color="#49454F" />
+                <Text className="text-onSurfaceVariant text-body-medium mt-3">No data yet</Text>
+              </View>
+            )}
+          </View>
+        </View>
 
+        {/* Platform Breakdown */}
+        <View className="mb-6">
+          <Text className="text-onSurfaceVariant text-title-medium font-medium mb-4">By Platform</Text>
+          {breakdown.map((item) => (
+            <View
+              key={item.platform.key}
+              className="flex-row items-center justify-between bg-surfaceContainer rounded-2xl p-4 mb-3 border border-outlineVariant"
+            >
+              <View className="flex-row items-center gap-3">
+                <View 
+                  className="w-4 h-4 rounded-full" 
+                  style={{ backgroundColor: item.platform.colorHex }} 
+                />
+                <Text className="text-onSurface text-body-large">{item.platform.displayName}</Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-onSurface text-title-medium font-medium">{item.totalVideos} videos</Text>
+                <Text className="text-onSurfaceVariant text-label-small">{item.percentOfTotal}% of total</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Export Button */}
         <Pressable
           onPress={onExport}
           disabled={exporting}
-          className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 my-6 active:opacity-80"
+          className="bg-primaryContainer rounded-2xl py-4 px-6 flex-row items-center justify-center gap-3 mb-8 active:opacity-70 disabled:opacity-50"
+          accessibilityRole="button"
+          accessibilityLabel={exporting ? "Exporting data" : "Export analytics as CSV"}
         >
-          <MaterialCommunityIcons name="cloud-download" size={18} color="white" />
-          <Text className="text-white font-semibold">
+          <MaterialCommunityIcons name="download-outline" size={24} color="#381E72" />
+          <Text className="text-onPrimaryContainer text-label-large font-medium">
             {exporting ? "Exporting..." : "Export as CSV"}
           </Text>
         </Pressable>
@@ -116,12 +162,13 @@ export default function AnalyticsScreen() {
   );
 }
 
-/** @param {{label: string, value: string}} props */
-function SummaryStat({ label, value }) {
+/** @param {{icon: string, label: string, value: string, color: string}} props */
+function SummaryStat({ icon, label, value, color }) {
   return (
-    <View className="flex-1 bg-surface rounded-2xl p-3 border border-surfaceAlt">
-      <Text className="text-white text-xl font-bold">{value}</Text>
-      <Text className="text-muted text-xs mt-1">{label}</Text>
+    <View className="flex-1 bg-surfaceContainerHigh rounded-2xl p-4 border border-outlineVariant">
+      <MaterialCommunityIcons name={icon} size={24} color={color} style={{ marginBottom: 8 }} />
+      <Text className="text-onSurface text-headline-small font-light">{value}</Text>
+      <Text className="text-onSurfaceVariant text-label-small mt-1">{label}</Text>
     </View>
   );
 }

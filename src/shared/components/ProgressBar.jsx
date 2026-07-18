@@ -8,7 +8,7 @@ import { useEffect } from "react";
  * @param {string} props.colorHex
  * @param {number} [props.height]
  */
-export function ProgressBar({ progress, colorHex, height = 8 }) {
+export function ProgressBar({ progress, colorHex, height = 6 }) {
   const width = useSharedValue(0);
 
   useEffect(() => {
@@ -22,9 +22,9 @@ export function ProgressBar({ progress, colorHex, height = 8 }) {
   const isOverLimit = progress > 1;
 
   return (
-    <View className="w-full rounded-full bg-surfaceAlt overflow-hidden" style={{ height }}>
+    <View className="w-full rounded-full bg-surfaceContainerHighest overflow-hidden" style={{ height }}>
       <Animated.View
-        style={[style, { backgroundColor: isOverLimit ? "#F87171" : colorHex, height }]}
+        style={[style, { backgroundColor: isOverLimit ? "#F2B8B5" : colorHex, height }]}
         className="rounded-full"
       />
     </View>

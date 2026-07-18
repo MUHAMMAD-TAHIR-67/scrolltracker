@@ -34,45 +34,84 @@ export default function DashboardScreen() {
     0
   );
 
+  const totalTimeTodayMs = trackingState.platforms.reduce(
+    (sum, p) => sum + (trackingState.todayStats[p.key]?.totalDurationMs ?? 0),
+    0
+  );
+
+  const formatTotalTime = (ms) => {
+    const totalMinutes = Math.round(ms / 60_000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-bg">
+    <SafeAreaView className="flex-1 bg-background">
       <ScrollView
-        className="px-5 pt-2"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22D3EE" />}
+        className="px-6 pt-2"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D0BCFF" />}
       >
-        <View className="flex-row justify-between items-center mb-1 mt-2">
-          <Text className="text-white text-2xl font-bold">Today</Text>
-          {streak > 0 ? (
-            <View className="flex-row items-center bg-surface rounded-full px-3 py-1 gap-1">
-              <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
-              <Text className="text-warn text-sm font-semibold">{streak} day streak</Text>
-            </View>
-          ) : null}
+        {/* Header */}
+        <View className="mb-6 mt-2">
+          <Text className="text-onBackground text-headline-large font-normal mb-1">Dashboard</Text>
+          <Text className="text-onSurfaceVariant text-body-medium">Track your short-form video usage</Text>
         </View>
-        <Text className="text-muted text-sm mb-4">
-          {totalVideosToday} short-form videos watched so far
-        </Text>
+
+        {/* Today's Summary Card */}
+        <View className="bg-surfaceContainerHigh rounded-3xl p-6 mb-6">
+          <View className="flex-row items-center mb-4">
+            <MaterialCommunityIcons name="today" size={20} color="#D0BCFF" style={{ marginRight: 8 }} />
+            <Text className="text-onSurfaceVariant text-title-small font-medium">Today's Overview</Text>
+          </View>
+          
+          <View className="flex-row gap-4">
+            <View className="flex-1 bg-surfaceContainerHighest rounded-2xl p-4">
+              <Text className="text-onSurfaceDisabled text-label-medium mb-1">Videos Watched</Text>
+              <Text className="text-onSurface text-display-small font-light">{totalVideosToday}</Text>
+            </View>
+            <View className="flex-1 bg-surfaceContainerHighest rounded-2xl p-4">
+              <Text className="text-onSurfaceDisabled text-label-medium mb-1">Time Spent</Text>
+              <Text className="text-onSurface text-headline-medium font-light">{formatTotalTime(totalTimeTodayMs)}</Text>
+            </View>
+          </View>
+          
+          {streak > 0 && (
+            <View className="flex-row items-center mt-4 bg-primaryContainer/20 rounded-xl px-4 py-2">
+              <MaterialCommunityIcons name="fire" size={18} color="#FFC66D" style={{ marginRight: 8 }} />
+              <Text className="text-onSurfaceVariant text-label-large">{streak} day streak</Text>
+            </View>
+          )}
+        </View>
 
         <PermissionGateBanner missingCount={missingPermissions} />
 
-        {trackingState.isLoading ? (
-          <Text className="text-muted">Loading...</Text>
-        ) : (
-          trackingState.platforms.map((platform) => {
-            const goal = goals.find(
-              (g) => g.platformId === platform.id && g.goalType === "video_count"
-            );
-            return (
-              <PlatformCard
-                key={platform.key}
-                platform={platform}
-                videoCount={selectDisplayCount(trackingState, platform.key)}
-                durationMs={trackingState.todayStats[platform.key]?.totalDurationMs ?? 0}
-                goalLimit={goal?.limitValue}
-              />
-            );
-          })
-        )}
+        {/* Platform Cards Section */}
+        <View className="mb-2">
+          <Text className="text-onSurfaceVariant text-title-medium font-medium mb-4">Platforms</Text>
+          
+          {trackingState.isLoading ? (
+            <View className="bg-surfaceContainer rounded-2xl p-6 items-center">
+              <Text className="text-onSurfaceVariant text-body-medium">Loading...</Text>
+            </View>
+          ) : (
+            trackingState.platforms.map((platform) => {
+              const goal = goals.find(
+                (g) => g.platformId === platform.id && g.goalType === "video_count"
+              );
+              return (
+                <PlatformCard
+                  key={platform.key}
+                  platform={platform}
+                  videoCount={selectDisplayCount(trackingState, platform.key)}
+                  durationMs={trackingState.todayStats[platform.key]?.totalDurationMs ?? 0}
+                  goalLimit={goal?.limitValue}
+                />
+              );
+            })
+          )}
+        </View>
 
         <View className="h-8" />
       </ScrollView>

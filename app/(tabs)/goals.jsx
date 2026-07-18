@@ -32,13 +32,26 @@ export default function GoalsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-bg">
-      <ScrollView className="px-5 pt-2">
-        <Text className="text-white text-2xl font-bold mb-1 mt-2">Daily Goals</Text>
-        <Text className="text-muted text-sm mb-5">
-          Set a daily video-count limit per platform. Focus Mode alerts you when you go over.
-        </Text>
+    <SafeAreaView className="flex-1 bg-background">
+      <ScrollView className="px-6 pt-2">
+        {/* Header */}
+        <View className="mb-6 mt-2">
+          <Text className="text-onBackground text-headline-large font-normal mb-1">Daily Goals</Text>
+          <Text className="text-onSurfaceVariant text-body-medium">Set limits to stay mindful of your usage</Text>
+        </View>
 
+        {/* Info Card */}
+        <View className="bg-primaryContainer/20 rounded-2xl p-4 mb-6 border border-outlineVariant">
+          <View className="flex-row items-center gap-3 mb-2">
+            <MaterialCommunityIcons name="information-outline" size={24} color="#D0BCFF" />
+            <Text className="text-onSurfaceVariant text-title-small font-medium">How it works</Text>
+          </View>
+          <Text className="text-onSurfaceVariant text-body-small leading-5">
+            Set a daily video-count limit per platform. Focus Mode will alert you when you go over your limit.
+          </Text>
+        </View>
+
+        {/* Platform Goals */}
         {trackingState.platforms.map((platform) => {
           const goal = goals.find((g) => g.platformId === platform.id && g.goalType === "video_count");
           const videoCount = selectDisplayCount(trackingState, platform.key);
@@ -48,21 +61,29 @@ export default function GoalsScreen() {
           return (
             <View
               key={platform.key}
-              className="bg-surface rounded-lg p-4 mb-3 border border-surfaceAlt shadow-sm"
+              className="bg-surfaceContainer rounded-2xl p-5 mb-3 border border-outlineVariant"
             >
-              <View className="flex-row justify-between items-center mb-3">
-                <View className="flex-row items-center gap-2">
-                  <View className="w-3 h-3 rounded-full" style={{ backgroundColor: platform.colorHex }} />
-                  <Text className="text-white font-semibold">{platform.displayName}</Text>
+              <View className="flex-row justify-between items-center mb-4">
+                <View className="flex-row items-center gap-3">
+                  <View 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: platform.colorHex }} 
+                  />
+                  <Text className="text-onSurface text-title-medium font-medium">{platform.displayName}</Text>
                 </View>
                 {!isEditing && (
-                  <Pressable onPress={() => startEditing(platform)} className="flex-row items-center gap-1 active:opacity-60">
+                  <Pressable 
+                    onPress={() => startEditing(platform)} 
+                    className="flex-row items-center gap-2 active:opacity-60"
+                    accessibilityRole="button"
+                    accessibilityLabel={goal ? "Edit goal" : "Set goal"}
+                  >
                     <MaterialCommunityIcons 
-                      name={goal ? "pencil" : "plus"} 
-                      size={14} 
-                      color="#14B8A6" 
+                      name={goal ? "pencil-outline" : "plus-circle-outline"} 
+                      size={20} 
+                      color="#D0BCFF" 
                     />
-                    <Text className="text-accent text-sm font-medium">
+                    <Text className="text-primary text-label-large font-medium">
                       {goal ? "Edit" : "Set limit"}
                     </Text>
                   </Pressable>
@@ -70,37 +91,53 @@ export default function GoalsScreen() {
               </View>
 
               {isEditing ? (
-                <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center gap-3">
                   <TextInput
                     value={draftLimit}
                     onChangeText={setDraftLimit}
                     keyboardType="number-pad"
-                    className="flex-1 bg-surfaceAlt text-white rounded-lg px-3 py-2"
+                    className="flex-1 bg-surfaceContainerHigh text-onSurface rounded-xl px-4 py-3"
                     placeholder="Videos per day"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor="#938F99"
+                    accessibilityLabel="Daily video limit"
                   />
                   <Pressable
                     onPress={() => saveGoal(platform.id)}
-                    className="bg-primary rounded-lg px-4 py-2 flex-row items-center gap-1 active:opacity-80"
+                    className="bg-primaryContainer rounded-xl px-5 py-3 flex-row items-center gap-2 active:opacity-70"
+                    accessibilityRole="button"
+                    accessibilityLabel="Save goal"
                   >
-                    <MaterialCommunityIcons name="check" size={14} color="white" />
-                    <Text className="text-white font-semibold">Save</Text>
+                    <MaterialCommunityIcons name="check" size={20} color="#381E72" />
+                    <Text className="text-onPrimaryContainer text-label-large font-medium">Save</Text>
                   </Pressable>
                 </View>
               ) : goal ? (
                 <>
-                  <ProgressBar progress={progress} colorHex={platform.colorHex} />
-                  <Text className="text-muted text-xs mt-1">
-                    {videoCount} / {goal.limitValue} videos today
-                    {progress > 1 ? " — over limit" : ""}
-                  </Text>
+                  <View className="flex-row items-baseline gap-2 mb-3">
+                    <Text className="text-onSurface text-display-small font-light">{videoCount}</Text>
+                    <Text className="text-onSurfaceVariant text-body-medium">/ {goal.limitValue} videos today</Text>
+                  </View>
+                  <ProgressBar progress={progress} colorHex={platform.colorHex} height={8} />
+                  <View className="flex-row justify-between mt-2">
+                    <Text className="text-onSurfaceVariant text-label-small">
+                      {progress > 1 ? "Over limit" : `${Math.round(progress * 100)}% of daily limit`}
+                    </Text>
+                    <Text className={`text-label-large font-medium ${progress > 1 ? "text-error" : "text-success"}`}>
+                      {Math.round((videoCount / goal.limitValue) * 100)}%
+                    </Text>
+                  </View>
                 </>
               ) : (
-                <Text className="text-muted text-sm">No limit set</Text>
+                <View className="flex-row items-center gap-2 py-2">
+                  <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#938F99" />
+                  <Text className="text-onSurfaceVariant text-body-medium">No limit set</Text>
+                </View>
               )}
             </View>
           );
         })}
+
+        <View className="h-8" />
       </ScrollView>
     </SafeAreaView>
   );

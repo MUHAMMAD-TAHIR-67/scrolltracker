@@ -9,18 +9,21 @@ export function PermissionGateBanner({ missingCount }) {
   return (
     <Pressable
       onPress={() => router.push("/onboarding")}
-      className="bg-warn/10 border border-warn rounded-lg p-4 mb-4 flex-row gap-3 active:opacity-80"
+      className="bg-errorContainer/10 border border-outline rounded-2xl p-4 mb-6 flex-row gap-3 active:opacity-70"
+      accessibilityRole="button"
+      accessibilityLabel="Fix permissions - tracking is not fully active"
     >
-      <MaterialCommunityIcons name="alert-circle" size={20} color="#FF6B35" style={{ marginTop: 2 }} />
+      <MaterialCommunityIcons name="alert-circle-outline" size={24} color="#F2B8B5" style={{ marginTop: 2 }} />
       <View className="flex-1">
-        <Text className="text-warn font-semibold mb-1">Tracking isn't fully active</Text>
-        <Text className="text-white/80 text-sm">
+        <Text className="text-onSurfaceVariant text-title-small font-medium mb-1">Tracking isn't fully active</Text>
+        <Text className="text-onSurfaceDisabled text-body-small">
           {missingCount === 1
             ? "1 permission still needs to be granted for accurate tracking."
             : `${missingCount} permissions still need to be granted for accurate tracking.`}{" "}
           Tap to finish setup.
         </Text>
       </View>
+      <MaterialCommunityIcons name="chevron-right" size={24} color="#938F99" />
     </Pressable>
   );
 }
