@@ -26,7 +26,10 @@ object ScrollEventBus {
         val timestamp: Long,
         val eventType: String, // matches NativeScrollEvent["eventType"] on the JS side
         val viewIdHint: String? = null,
-        val contentDescHint: String? = null
+        val contentDescHint: String? = null,
+        val swipeDirection: String? = null, // UP, DOWN, NONE (new field)
+        val appScreen: String? = null, // VIDEO_FEED, COMMENTS_OPEN, PROFILE, SEARCH, UNKNOWN (new field)
+        val isValidVideoCount: Boolean? = null // pre-calculated validity (new field)
     )
 
     private const val MAX_BUFFER = 500

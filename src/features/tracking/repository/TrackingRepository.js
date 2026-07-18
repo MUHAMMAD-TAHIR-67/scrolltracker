@@ -38,11 +38,22 @@ export class TrackingRepository {
     return result.lastInsertRowId;
   }
 
-  async appendVideoEvent(sessionId, occurredAt, confidence, detection) {
+  /**
+   * Append a video event (detected video change) to a session.
+   * @param {number} sessionId
+   * @param {number} occurredAt
+   * @param {number} confidence
+   * @param {string} detection - detection method ('swipe_direct', 'view_id_change', etc.)
+   * @param {Object} [options] - optional: { swipeDirection, appScreenState, detectionSource }
+   */
+  async appendVideoEvent(sessionId, occurredAt, confidence, detection, options = {}) {
     const db = await getDatabase();
+    const { swipeDirection = null, appScreenState = null, detectionSource = 'heuristic' } = options;
+    
     await db.runAsync(
-      `INSERT INTO video_events (session_id, occurred_at, confidence, detection) VALUES (?, ?, ?, ?);`,
-      [sessionId, occurredAt, confidence, detection]
+      `INSERT INTO video_events (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      [sessionId, occurredAt, confidence, detection, swipeDirection, appScreenState, detectionSource]
     );
     await db.runAsync(`UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;`, [sessionId]);
   }
