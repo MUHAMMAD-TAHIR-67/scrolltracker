@@ -4,6 +4,30 @@ const DB_NAME = "scrolltracker.db";
 let dbInstance = null;
 
 /**
+ * Helper: wrap a database operation in a transaction.
+ * Automatically handles BEGIN/COMMIT/ROLLBACK.
+ * @param {SQLite.SQLiteDatabase} db
+ * @param {(db: SQLite.SQLiteDatabase) => Promise<any>} callback
+ * @returns {Promise<any>}
+ */
+export async function withTransaction(db, callback) {
+  if (!db) throw new Error("Database not available");
+  try {
+    await db.execAsync("BEGIN TRANSACTION;");
+    const result = await callback(db);
+    await db.execAsync("COMMIT;");
+    return result;
+  } catch (error) {
+    try {
+      await db.execAsync("ROLLBACK;");
+    } catch (rollbackError) {
+      console.warn("[v0] Rollback failed:", rollbackError?.message);
+    }
+    throw error;
+  }
+}
+
+/**
  * Singleton async DB accessor. expo-sqlite (SDK 52+) exposes an async API
  * backed by a native connection pool - safe to call from multiple places
  * without manually managing open/close.
@@ -33,7 +57,7 @@ export async function getDatabase() {
   }
 }
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /** @param {SQLite.SQLiteDatabase} db */
 async function runMigrations(db) {
@@ -58,6 +82,13 @@ async function runMigrations(db) {
       await db.execAsync(MIGRATION_V2);
       await db.execAsync(`PRAGMA user_version = 2;`);
       console.log("[v0] Database schema v2 migrated (added swipe detection columns)");
+    }
+
+    // Migration v2 -> v3: Add unique constraints and indexes for data integrity
+    if (currentVersion < 3) {
+      await db.execAsync(MIGRATION_V3);
+      await db.execAsync(`PRAGMA user_version = 3;`);
+      console.log("[v0] Database schema v3 migrated (added constraints for data integrity)");
     }
 
     // Run recovery on startup
@@ -112,6 +143,23 @@ ALTER TABLE video_events ADD COLUMN swipe_direction TEXT;
 ALTER TABLE video_events ADD COLUMN app_screen_state TEXT;
 ALTER TABLE video_events ADD COLUMN detection_source TEXT DEFAULT 'heuristic';
 UPDATE video_events SET detection_source = 'heuristic' WHERE detection_source IS NULL;
+`;
+
+// Migration from v2 to v3: Add unique constraints and indexes for data integrity
+// Prevents duplicate sessions and improves query performance
+const MIGRATION_V3 = `
+-- Index for faster session lookups by platform and day
+CREATE INDEX IF NOT EXISTS idx_sessions_platform_day_open ON sessions(platform_id, day_bucket, ended_at);
+
+-- Index for faster video event queries
+CREATE INDEX IF NOT EXISTS idx_video_events_session_time ON video_events(session_id, occurred_at);
+
+-- Index for daily stats queries  
+CREATE INDEX IF NOT EXISTS idx_daily_stats_day ON daily_stats(day_bucket);
+CREATE INDEX IF NOT EXISTS idx_daily_stats_platform ON daily_stats(platform_id);
+
+-- Add unique constraint on streak_days (already has it as PRIMARY KEY, but ensure it)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_streak_days_unique ON streak_days(day_bucket);
 `;
 
 // Inlined copy of schema.sql (kept in sync manually, or generated at build

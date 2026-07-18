@@ -1,4 +1,4 @@
-import { getDatabase } from "@/db/database";
+import { getDatabase, withTransaction } from "@/db/database";
 import { format } from "date-fns";
 
 /**
@@ -30,16 +30,33 @@ export class TrackingRepository {
   async openSession(platformId, startedAt, source) {
     const db = await getDatabase();
     const dayBucket = format(startedAt, "yyyy-MM-dd");
-    const result = await db.runAsync(
-      `INSERT INTO sessions (platform_id, started_at, video_count, source, day_bucket)
-       VALUES (?, ?, 0, ?, ?);`,
-      [platformId, startedAt, source, dayBucket]
-    );
-    return result.lastInsertRowId;
+    
+    return await withTransaction(db, async (txDb) => {
+      // Check if an active session already exists for this platform today
+      // Prevents duplicate sessions from concurrent calls
+      const existing = await txDb.getFirstAsync(
+        `SELECT id FROM sessions WHERE platform_id = ? AND day_bucket = ? AND ended_at IS NULL LIMIT 1;`,
+        [platformId, dayBucket]
+      );
+      
+      if (existing) {
+        console.log("[v0] Session already exists for platform, reusing existing:", existing.id);
+        return existing.id;
+      }
+      
+      // Create new session
+      const result = await txDb.runAsync(
+        `INSERT INTO sessions (platform_id, started_at, video_count, source, day_bucket)
+         VALUES (?, ?, 0, ?, ?);`,
+        [platformId, startedAt, source, dayBucket]
+      );
+      return result.lastInsertRowId;
+    });
   }
 
   /**
    * Append a video event (detected video change) to a session.
+   * Uses transaction to ensure atomicity. Prevents duplicate events within 1 second window.
    * @param {number} sessionId
    * @param {number} occurredAt
    * @param {number} confidence
@@ -50,30 +67,64 @@ export class TrackingRepository {
     const db = await getDatabase();
     const { swipeDirection = null, appScreenState = null, detectionSource = 'heuristic' } = options;
     
-    await db.runAsync(
-      `INSERT INTO video_events (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source)
-       VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      [sessionId, occurredAt, confidence, detection, swipeDirection, appScreenState, detectionSource]
-    );
-    await db.runAsync(`UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;`, [sessionId]);
+    return await withTransaction(db, async (txDb) => {
+      // Check for duplicate: same session, within 1 second window
+      // Prevents double-counting from concurrent event processing
+      const recent = await txDb.getFirstAsync(
+        `SELECT id FROM video_events WHERE session_id = ? AND occurred_at >= ? LIMIT 1;`,
+        [sessionId, occurredAt - 1000]
+      );
+      
+      if (recent) {
+        console.log("[v0] Duplicate video event detected, skipping:", sessionId, occurredAt);
+        return recent.id; // Return existing event ID
+      }
+      
+      // Insert new event
+      const result = await txDb.runAsync(
+        `INSERT INTO video_events (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source)
+         VALUES (?, ?, ?, ?, ?, ?, ?);`,
+        [sessionId, occurredAt, confidence, detection, swipeDirection, appScreenState, detectionSource]
+      );
+      
+      // Increment video count for session (atomic with event insert)
+      await txDb.runAsync(`UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;`, [sessionId]);
+      
+      return result.lastInsertRowId;
+    });
   }
 
   async closeSession(sessionId, endedAt) {
     const db = await getDatabase();
-    const session = await db.getFirstAsync("SELECT * FROM sessions WHERE id = ?;", [sessionId]);
-    if (!session) return;
-    const durationMs = endedAt - session.started_at;
-    await db.runAsync(
-      `UPDATE sessions SET ended_at = ?, duration_ms = ? WHERE id = ?;`,
-      [endedAt, durationMs, sessionId]
-    );
-    await this.recomputeDailyStat(session.platform_id, session.day_bucket);
+    
+    return await withTransaction(db, async (txDb) => {
+      const session = await txDb.getFirstAsync("SELECT * FROM sessions WHERE id = ?;", [sessionId]);
+      if (!session) return;
+      
+      const durationMs = endedAt - session.started_at;
+      
+      // Update session with end time (atomic)
+      await txDb.runAsync(
+        `UPDATE sessions SET ended_at = ?, duration_ms = ? WHERE id = ?;`,
+        [endedAt, durationMs, sessionId]
+      );
+      
+      // Recompute daily stats within same transaction
+      await this._recomputeDailyStatTx(txDb, session.platform_id, session.day_bucket);
+    });
   }
 
   /** Recomputes the daily_stats rollup row for a platform/day from raw sessions. */
   async recomputeDailyStat(platformId, dayBucket) {
     const db = await getDatabase();
-    const agg = await db.getFirstAsync(
+    return await withTransaction(db, async (txDb) => {
+      return await this._recomputeDailyStatTx(txDb, platformId, dayBucket);
+    });
+  }
+
+  /** Internal: recompute daily stat within a transaction. */
+  async _recomputeDailyStatTx(txDb, platformId, dayBucket) {
+    const agg = await txDb.getFirstAsync(
       `SELECT
          COALESCE(SUM(video_count), 0) as total_videos,
          COALESCE(SUM(duration_ms), 0) as total_duration_ms,
@@ -83,7 +134,7 @@ export class TrackingRepository {
       [platformId, dayBucket]
     );
     const avgWatchMs = agg.total_videos > 0 ? Math.round(agg.total_duration_ms / agg.total_videos) : 0;
-    await db.runAsync(
+    await txDb.runAsync(
       `INSERT INTO daily_stats (day_bucket, platform_id, total_videos, total_duration_ms, session_count, avg_watch_ms)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(day_bucket, platform_id) DO UPDATE SET
