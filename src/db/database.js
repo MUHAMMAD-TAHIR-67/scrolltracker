@@ -147,19 +147,29 @@ UPDATE video_events SET detection_source = 'heuristic' WHERE detection_source IS
 
 // Migration from v2 to v3: Add unique constraints and indexes for data integrity
 // Prevents duplicate sessions and improves query performance
+// These indexes are critical for performance with large datasets
 const MIGRATION_V3 = `
--- Index for faster session lookups by platform and day
+-- Index for faster session lookups by platform and day (dashboard queries)
 CREATE INDEX IF NOT EXISTS idx_sessions_platform_day_open ON sessions(platform_id, day_bucket, ended_at);
 
--- Index for faster video event queries
+-- Index for faster video event queries by session and time (event processing)
 CREATE INDEX IF NOT EXISTS idx_video_events_session_time ON video_events(session_id, occurred_at);
 
--- Index for daily stats queries  
+-- Index for daily stats queries (analytics screen)
 CREATE INDEX IF NOT EXISTS idx_daily_stats_day ON daily_stats(day_bucket);
 CREATE INDEX IF NOT EXISTS idx_daily_stats_platform ON daily_stats(platform_id);
 
+-- Compound index for analytics range queries (optimizes date range queries)
+CREATE INDEX IF NOT EXISTS idx_daily_stats_range ON daily_stats(day_bucket, platform_id);
+
+-- Index for session aggregations (used in dashboard/analytics)
+CREATE INDEX IF NOT EXISTS idx_sessions_aggregation ON sessions(platform_id, day_bucket, ended_at, video_count);
+
 -- Add unique constraint on streak_days (already has it as PRIMARY KEY, but ensure it)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_streak_days_unique ON streak_days(day_bucket);
+
+-- ANALYZE indexes to help query planner
+ANALYZE;
 `;
 
 // Inlined copy of schema.sql (kept in sync manually, or generated at build

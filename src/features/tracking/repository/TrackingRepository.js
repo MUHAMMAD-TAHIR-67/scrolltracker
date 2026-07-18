@@ -212,6 +212,70 @@ export class TrackingRepository {
        ORDER BY s.started_at ASC;`
     );
   }
+
+  /**
+   * Optimized batch fetch: get all data needed for dashboard in one query.
+   * Reduces number of round-trips to database.
+   * @param {string} dayBucket
+   * @returns {Promise<{platforms: any[], dailyStats: any[], goals: any[]}>}
+   */
+  async getDashboardData(dayBucket) {
+    const db = await getDatabase();
+    
+    // All three queries run in parallel for better performance
+    const [platforms, dailyStats, goals] = await Promise.all([
+      db.getAllAsync("SELECT * FROM platforms ORDER BY id;"),
+      db.getAllAsync(`SELECT * FROM daily_stats WHERE day_bucket = ?;`, [dayBucket]),
+      db.getAllAsync(`SELECT * FROM goals WHERE is_active = 1;`)
+    ]);
+    
+    return {
+      platforms: platforms.map(mapPlatform),
+      dailyStats: dailyStats.map(mapDailyStat),
+      goals: goals.map(mapGoal)
+    };
+  }
+
+  /**
+   * Optimized batch fetch: get all analytics data for a date range.
+   * @param {string} startDay
+   * @param {string} endDay
+   * @returns {Promise<{statsRange: any[], breakdown: any[]}>}
+   */
+  async getAnalyticsData(startDay, endDay) {
+    const db = await getDatabase();
+    
+    // Fetch stats and compute breakdown in parallel
+    const [statsRange, breakdown] = await Promise.all([
+      db.getAllAsync(
+        `SELECT * FROM daily_stats WHERE day_bucket BETWEEN ? AND ? ORDER BY day_bucket ASC;`,
+        [startDay, endDay]
+      ),
+      db.getAllAsync(
+        `SELECT 
+          p.id, p.key, p.display_name, p.color_hex,
+          COALESCE(SUM(s.video_count), 0) as total_videos,
+          COALESCE(SUM(s.duration_ms), 0) as total_duration_ms,
+          COALESCE(AVG(s.duration_ms / NULLIF(s.video_count, 0)), 0) as avg_watch_ms
+         FROM platforms p
+         LEFT JOIN sessions s ON p.id = s.platform_id AND s.day_bucket BETWEEN ? AND ? AND s.ended_at IS NOT NULL
+         GROUP BY p.id
+         ORDER BY p.id;`,
+        [startDay, endDay]
+      )
+    ]);
+    
+    return {
+      statsRange: statsRange.map(mapDailyStat),
+      breakdown: breakdown.map(row => ({
+        platform: mapPlatform(row),
+        totalVideos: row.total_videos,
+        totalDurationMs: row.total_duration_ms,
+        avgWatchMs: row.avg_watch_ms,
+        percentOfTotal: 0 // Calculated in service layer
+      }))
+    };
+  }
 }
 
 function mapPlatform(row) {
