@@ -31,7 +31,7 @@ export async function getDatabase() {
   }
 }
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 /** @param {SQLite.SQLiteDatabase} db */
 async function runMigrations(db) {
@@ -47,16 +47,29 @@ async function runMigrations(db) {
       // Metro/Hermes can't import .sql files directly, so the bootstrap DDL
       // is inlined below (kept identical to src/db/schema.sql).
       await db.execAsync(BOOTSTRAP_SQL_V1);
-      await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+      await db.execAsync(`PRAGMA user_version = 1;`);
       console.log("[v0] Database schema v1 created");
     }
 
-    // Future migrations:
-    // if (currentVersion < 2) { await db.execAsync(MIGRATION_V2); await db.execAsync("PRAGMA user_version = 2;"); }
+    // Migration v1 -> v2: Add swipe detection columns to video_events
+    if (currentVersion < 2) {
+      await db.execAsync(MIGRATION_V2);
+      await db.execAsync(`PRAGMA user_version = 2;`);
+      console.log("[v0] Database schema v2 migrated (added swipe detection columns)");
+    }
   } catch (error) {
     console.warn("[v0] Migration error (continuing anyway):", error?.message || error);
   }
 }
+
+// Migration from v1 to v2: Add swipe detection columns
+// This backfills existing rows with 'heuristic' as the detection source for backward compatibility
+const MIGRATION_V2 = `
+ALTER TABLE video_events ADD COLUMN swipe_direction TEXT;
+ALTER TABLE video_events ADD COLUMN app_screen_state TEXT;
+ALTER TABLE video_events ADD COLUMN detection_source TEXT DEFAULT 'heuristic';
+UPDATE video_events SET detection_source = 'heuristic' WHERE detection_source IS NULL;
+`;
 
 // Inlined copy of schema.sql (kept in sync manually, or generated at build
 // time via a small script - see scripts/generate-schema-const.js).
@@ -85,7 +98,10 @@ CREATE TABLE IF NOT EXISTS video_events (
   session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   occurred_at INTEGER NOT NULL,
   confidence REAL NOT NULL DEFAULT 1.0,
-  detection TEXT NOT NULL
+  detection TEXT NOT NULL,
+  swipe_direction TEXT,
+  app_screen_state TEXT,
+  detection_source TEXT DEFAULT 'heuristic'
 );
 CREATE INDEX IF NOT EXISTS idx_events_session ON video_events(session_id);
 CREATE TABLE IF NOT EXISTS daily_stats (

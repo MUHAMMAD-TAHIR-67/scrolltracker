@@ -1,4 +1,4 @@
-﻿package com.scrolltracker
+package com.scrolltracker
 
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
@@ -31,6 +31,10 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
             putString("eventType", event.eventType)
             event.viewIdHint?.let { putString("viewIdHint", it) }
             event.contentDescHint?.let { putString("contentDescHint", it) }
+            // Emit new gesture/state fields
+            event.swipeDirection?.let { putString("swipeDirection", it) }
+            event.appScreen?.let { putString("appScreen", it) }
+            event.isValidVideoCount?.let { putBoolean("isValidVideoCount", it) }
         }
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)

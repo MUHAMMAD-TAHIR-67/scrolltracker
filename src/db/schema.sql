@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS video_events (
   session_id    INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   occurred_at   INTEGER NOT NULL,
   confidence    REAL NOT NULL DEFAULT 1.0,   -- 0-1, heuristic certainty this was a distinct video
-  detection     TEXT NOT NULL                -- 'scroll_gesture' | 'view_id_change' | 'content_desc_change' | 'timer_heuristic'
+  detection     TEXT NOT NULL,               -- 'scroll_gesture' | 'view_id_change' | 'content_desc_change' | 'timer_heuristic' | 'swipe_direct'
+  swipe_direction TEXT,                      -- 'UP' | 'DOWN' | NULL (null if no swipe detected)
+  app_screen_state TEXT,                     -- 'VIDEO_FEED' | 'COMMENTS_OPEN' | 'PROFILE' | 'SEARCH' | 'UNKNOWN' | NULL
+  detection_source TEXT DEFAULT 'heuristic'  -- 'swipe' | 'heuristic' (which method detected this)
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_session ON video_events(session_id);

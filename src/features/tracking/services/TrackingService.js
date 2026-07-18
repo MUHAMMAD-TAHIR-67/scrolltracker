@@ -110,7 +110,12 @@ class TrackingServiceImpl {
           sessionId,
           result.newEvent.occurredAt,
           result.newEvent.confidence,
-          result.newEvent.detection
+          result.newEvent.detection,
+          {
+            swipeDirection: result.newEvent.direction || null,
+            appScreenState: result.newEvent.appScreen || null,
+            detectionSource: result.newEvent.detection === 'swipe_direct' ? 'swipe' : 'heuristic'
+          }
         );
         useTrackingStore.getState().incrementLiveCount(platform.key);
       }
