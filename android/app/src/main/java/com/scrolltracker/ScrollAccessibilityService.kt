@@ -1,6 +1,7 @@
 package com.scrolltracker
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.util.Log
@@ -29,6 +30,14 @@ import android.util.Log
  * dwell time, loop detection) happens in JS (SessionEstimator.ts) so the
  * heuristic can be iterated on without a native rebuild. This service's job
  * is only to forward candidate structural signals cheaply.
+ * 
+ * CRITICAL: This service operates INDEPENDENTLY from the app UI. Once the
+ * Accessibility permission is granted, tracking continues even if the app
+ * process is killed, because:
+ * 1. The service runs in its own process bound by the system
+ * 2. TrackerForegroundService keeps the process alive with START_STICKY
+ * 3. Events are buffered in ScrollEventBus until JS runtime is available
+ * 4. BootReceiver restarts the ForegroundService after reboot
  */
 class ScrollAccessibilityService : AccessibilityService() {
 
@@ -41,12 +50,18 @@ class ScrollAccessibilityService : AccessibilityService() {
     )
 
     private var lastForegroundPackage: String? = null
+    
+    // Track state per package to properly detect screen transitions
+    private val packageStates = mutableMapOf<String, String>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in trackedPackages) return
 
+        // Update screen state using AppScreenStateTracker
+        val appState = AppScreenStateTracker.updateState(packageName, event)
+        
         val eventType = when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "window_state_changed"
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> "view_scrolled"
@@ -56,15 +71,22 @@ class ScrollAccessibilityService : AccessibilityService() {
 
         // Emit an explicit app_foreground the first time we see a tracked
         // package become active, so TrackingService.ts can open a session.
-        if (eventType == "window_state_changed" && lastForegroundPackage != packageName) {
-            lastForegroundPackage = packageName
-            ScrollEventBus.publish(
-                ScrollEventBus.Event(
-                    packageName = packageName,
-                    timestamp = System.currentTimeMillis(),
-                    eventType = "app_foreground"
+        if (eventType == "window_state_changed") {
+            val prevState = packageStates[packageName]
+            if (prevState == null || prevState != appState) {
+                packageStates[packageName] = appState
+                
+                // Always emit app_foreground when entering a tracked app
+                // This ensures sessions are opened even if UI is not running
+                ScrollEventBus.publish(
+                    ScrollEventBus.Event(
+                        packageName = packageName,
+                        timestamp = System.currentTimeMillis(),
+                        eventType = "app_foreground",
+                        viewIdHint = appState // Pass state as hint for JS-side processing
+                    )
                 )
-            )
+            }
         }
 
         val viewIdHint = try {
@@ -115,5 +137,26 @@ class ScrollAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i("ScrollTracker", "ScrollAccessibilityService connected")
+        
+        // Ensure the ForegroundService is running to keep our process alive
+        // This is critical for tracking to work when the UI is closed
+        try {
+            val fgIntent = Intent(this, TrackerForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(fgIntent)
+            } else {
+                startService(fgIntent)
+            }
+        } catch (e: Exception) {
+            Log.e("ScrollTracker", "Failed to start ForegroundService", e)
+        }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i("ScrollTracker", "ScrollAccessibilityService destroyed")
+        // Clear all states on destroy
+        AppScreenStateTracker.clearAllStates()
+        packageStates.clear()
     }
 }
