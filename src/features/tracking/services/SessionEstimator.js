@@ -159,6 +159,12 @@ export class SessionEstimator {
     const closed = [];
     for (const [pkg, state] of this.#open.entries()) {
       const profile = PLATFORM_PROFILES[state.platformKey];
+      if (!profile) {
+        // Unknown platform - clean up anyway
+        this.#open.delete(pkg);
+        SwipeCounter.endSession(pkg, state.lastEventAt);
+        continue;
+      }
       if (now - state.lastEventAt > profile.sessionTimeoutMs) {
         closed.push({ packageName: pkg, endedAt: state.lastEventAt, videoCount: state.videoCount });
         this.#open.delete(pkg);

@@ -15,7 +15,9 @@ export async function getDatabase() {
     console.log("[v0] Opening database...");
     const db = await SQLite.openDatabaseAsync(DB_NAME);
     if (!db) {
-      throw new Error("Failed to open database - returned null");
+      console.error("[v0] Database initialization failed: SQLite.openDatabaseAsync returned null");
+      // Return null gracefully instead of throwing
+      return null;
     }
     console.log("[v0] Database opened successfully");
     
@@ -25,7 +27,7 @@ export async function getDatabase() {
     return dbInstance;
   } catch (error) {
     console.error("[v0] Database initialization failed:", error?.message || error);
-    // Don't throw - allow app to continue without database
+    // Clear instance to allow retry on next call
     dbInstance = null;
     return null;
   }
@@ -73,17 +75,28 @@ async function runMigrations(db) {
 async function recoverOrphanedSessions(db) {
   if (!db) return;
   try {
-    const now = Math.floor(Date.now() / 1000);
-    const orphanedResult = await db.getFirstAsync(
-      `SELECT COUNT(*) as count FROM sessions WHERE ended_at IS NULL AND started_at < ?`,
-      [now - 300] // Sessions open for more than 5 minutes without proper close
-    );
+    // Use milliseconds (Date.now() format) for timestamp consistency
+    // Sessions table stores timestamps in milliseconds, matching native layer (System.currentTimeMillis())
+    const now = Date.now();
+    const fiveMinutesAgoMs = now - (5 * 60 * 1000); // 5 minutes in milliseconds
     
-    if (orphanedResult?.count > 0) {
+    let orphanedResult;
+    try {
+      orphanedResult = await db.getFirstAsync(
+        `SELECT COUNT(*) as count FROM sessions WHERE ended_at IS NULL AND started_at < ?`,
+        [fiveMinutesAgoMs]
+      );
+    } catch (queryError) {
+      console.warn("[v0] Failed to query orphaned sessions:", queryError?.message);
+      return; // Skip recovery if query fails
+    }
+    
+    if (orphanedResult && typeof orphanedResult.count === 'number' && orphanedResult.count > 0) {
       // Close orphaned sessions as terminated by crash
-      await db.execAsync(
+      // Use runAsync (not execAsync) for parameterized query support
+      await db.runAsync(
         `UPDATE sessions SET ended_at = ? WHERE ended_at IS NULL AND started_at < ?`,
-        [now, now - 300]
+        [now, fiveMinutesAgoMs]
       );
       console.log(`[v0] Recovered ${orphanedResult.count} orphaned sessions from previous crash`);
     }

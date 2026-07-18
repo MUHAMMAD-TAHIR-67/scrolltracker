@@ -14,14 +14,53 @@
  * for backward compatibility and edge cases.
  */
 
+import * as CommentScrollDetector from "./CommentScrollDetector";
+
 /** @type {Record<string, {lastSwipeAt: number, videoCount: number, events: Array<{occurredAt: number, direction: string, appScreen: string}>}>} */
 const sessionState = new Map();
+// Semaphore to prevent race conditions on sessionState Map
+// JavaScript is single-threaded per event loop, but this protects against re-entrancy
+let isProcessing = false;
+const pendingEvents = [];
 
 /**
  * Process a native scroll event that may contain swipe information.
  * Returns { videoDelta: 0|1, newEvent?: {...}, sessionEnded?: {...} }
  */
 export function processSwipeEvent(event) {
+  // Queue if already processing to maintain order
+  if (isProcessing) {
+    pendingEvents.push(event);
+    return { videoDelta: 0 };
+  }
+
+  return _processSwipeEventSynchronized(event);
+}
+
+/**
+ * Internal: process event with synchronization
+ */
+function _processSwipeEventSynchronized(event) {
+  isProcessing = true;
+  try {
+    const result = _handleSwipeEvent(event);
+    
+    // Process any queued events
+    while (pendingEvents.length > 0) {
+      const nextEvent = pendingEvents.shift();
+      _handleSwipeEvent(nextEvent);
+    }
+    
+    return result;
+  } finally {
+    isProcessing = false;
+  }
+}
+
+/**
+ * Internal: actual event handling logic (now synchronized)
+ */
+function _handleSwipeEvent(event) {
   const key = event.packageName;
   let state = sessionState.get(key);
 
@@ -56,7 +95,7 @@ export function processSwipeEvent(event) {
   }
 
   // Only count if it wasn't a comment scroll (double-checked by CommentScrollDetector)
-  if (isCommentScroll(event)) {
+  if (CommentScrollDetector.isLikelyCommentScroll(event)) {
     return { videoDelta: 0 };
   }
 
@@ -107,27 +146,7 @@ export function clearAllSessions() {
   sessionState.clear();
 }
 
-/**
- * Helper: determine if a scroll event is likely inside the comments section.
- * This is a heuristic check as additional validation.
- */
-function isCommentScroll(event) {
-  // If appScreen is explicitly COMMENTS_OPEN, it's definitely a comment scroll
-  if (event.appScreen === "COMMENTS_OPEN") {
-    return true;
-  }
 
-  // Check for comment-related hints in the resource-id or content-description
-  if (event.viewIdHint?.toLowerCase().includes("comment")) {
-    return true;
-  }
-
-  if (event.contentDescHint?.toLowerCase().includes("comment")) {
-    return true;
-  }
-
-  return false;
-}
 
 /**
  * Utility to merge SwipeCounter results with SessionEstimator results
