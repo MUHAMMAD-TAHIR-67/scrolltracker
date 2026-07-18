@@ -1,27 +1,18 @@
 /**
- * SessionEstimator - NOW USES SWIPE-BASED COUNTING AS PRIMARY METHOD
+ * SessionEstimator - orchestrates session lifecycle + delegates video counting to SwipeCounter.
  *
- * HYBRID APPROACH (Phase 1+2):
- * - SwipeCounter detects ACTUAL USER SWIPES from the native layer
- * - SessionEstimator remains as FALLBACK for backward compatibility
- * - Results prefer swipe-based over heuristic when both are available
+ * VIDEO COUNTING: swipe-only. A video is counted if and only if SwipeCounter detects
+ * an actual vertical swipe while in VIDEO_FEED state, outside comments. See ingest() below.
  *
- * OLD BEHAVIOR (preserved as fallback):
- * Converts a stream of low-level NativeScrollEvents into "this looks like a new video" decisions.
- * This is a heuristic, not ground truth. Android's Accessibility API gives us
- * structural signals (view hierarchy changes, scroll events, content-desc changes)
- * but never a semantic "video index" the way an app's own player does internally.
- *
- * Detection signals, in order of trust:
- *  1. view_id_change   - the resource-id of the focused video container node changed
- *  2. content_desc_change - the accessibility content-description changed
- *  3. scroll_gesture    - a TYPE_VIEW_SCROLLED event fired (low confidence, paired with dwell-time)
- *  4. timer_heuristic   - fallback: elapsed time as evidence of additional videos
+ * This class itself no longer counts videos from dwell-time/structural-event heuristics -
+ * that approach counted TYPE_WINDOW_CONTENT_CHANGED events that fire continuously during
+ * normal playback (progress bar, captions, etc.), which behaved like a timer rather than
+ * a swipe detector. It's kept only for session open/close bookkeeping.
  *
  * @typedef {Object} PlatformHeuristicProfile
- * @property {number} minDwellMs Minimum ms a video must be on screen before a new scroll counts as a new video.
+ * @property {number} minDwellMs Unused for counting now; kept for the deprecated #ingestHeuristic reference method.
  * @property {number} loopGraceMs If no event arrives for this long, assume video is on loop (don't double count).
- * @property {number} averageVideoMs After this time with zero structural signal, treat as evidence of additional videos.
+ * @property {number} averageVideoMs Unused - video counting never estimates from elapsed time.
  * @property {number} sessionTimeoutMs Session ends after this much time backgrounded.
  *
  * @typedef {Object} EstimatorResult
@@ -47,7 +38,16 @@ export class SessionEstimator {
 
   /**
    * Feed a single native event in. Returns what changed so the caller can persist it.
-   * HYBRID: Prefers swipe-based counting, falls back to heuristics.
+   *
+   * VIDEO COUNTING IS SWIPE-ONLY: per the project's counting formula, a video is only
+   * ever counted on a detected vertical swipe (SwipeCounter.processSwipeEvent), while
+   * in VIDEO_FEED state, outside comments. The old dwell-time heuristic below
+   * (#ingestHeuristic) is kept ONLY for session lifecycle bookkeeping (open/close,
+   * lastEventAt) - it must never itself produce a videoDelta, since
+   * TYPE_WINDOW_CONTENT_CHANGED fires continuously during normal video playback
+   * (progress bar, captions, like-count animations, etc.) for reasons that have
+   * nothing to do with the user swiping. Counting on that event, once dwell time
+   * had elapsed, was effectively counting elapsed seconds rather than thumb movement.
    * @param {import("../types").NativeScrollEvent} event
    * @returns {EstimatorResult}
    */
@@ -55,22 +55,16 @@ export class SessionEstimator {
     const profile = PLATFORM_PROFILES[this.#resolvePlatformKey(event.packageName)];
     if (!profile) return { videoDelta: 0 };
 
-    // PRIMARY: Try swipe-based counting first (new native gesture detection)
-    const swipeResult = SwipeCounter.processSwipeEvent(event);
-    if (swipeResult && swipeResult.videoDelta > 0) {
-      // Also update the heuristic state for session lifecycle management
-      this.#updateHeuristicState(event, profile);
-      // Log both methods for debugging/comparison
-      const heuristicResult = this.#ingestHeuristic(event, profile);
-      return { ...swipeResult, heuristicComparison: heuristicResult };
-    }
+    // Session lifecycle bookkeeping only - never increments videoCount itself.
+    this.#updateHeuristicState(event, profile);
 
-    // FALLBACK: Use heuristic-based counting (old method)
-    return this.#ingestHeuristic(event, profile);
+    // Source of truth for video counting: an actual detected swipe.
+    return SwipeCounter.processSwipeEvent(event);
   }
 
   /**
-   * Internal: heuristic-based ingestion (legacy behavior).
+   * @deprecated No longer used to produce video counts - see ingest() above.
+   * Left in place only as a reference/debug utility; not called from ingest().
    * @private
    */
   #ingestHeuristic(event, profile) {
@@ -123,6 +117,7 @@ export class SessionEstimator {
 
     return { videoDelta: 1, newEvent };
   }
+
 
   /**
    * Internal: update heuristic session state without counting (used during hybrid mode).

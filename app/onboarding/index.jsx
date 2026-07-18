@@ -34,9 +34,12 @@ export default function OnboardingScreen() {
     accessibilityGranted,
     usageAccessGranted,
     notificationsGranted,
+    batteryOptimizationIgnored,
     openAccessibilitySettings,
     openUsageAccessSettings,
     requestNotifications,
+    requestBatteryOptimizationExemption,
+    openAutostartSettings,
     refresh,
     completeOnboarding,
   } = usePermissionsStore();
@@ -92,6 +95,26 @@ export default function OnboardingScreen() {
               granted={notificationsGranted}
               onPress={requestNotifications}
             />
+            <PermissionRow
+              label="Background battery access"
+              description="Prevents Android from killing tracking to save power"
+              granted={batteryOptimizationIgnored}
+              onPress={requestBatteryOptimizationExemption}
+            />
+            <Pressable
+              onPress={openAutostartSettings}
+              className="bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt"
+            >
+              <Text className="text-white font-medium">
+                Xiaomi / Vivo / Oppo / Huawei? Tap here
+              </Text>
+              <Text className="text-muted text-xs mt-0.5">
+                These brands have an extra "autostart" toggle that must be
+                enabled too, or tracking will silently stop in the background.
+                Tapping this opens the right screen for your phone - if
+                nothing opens, it's not needed on your device.
+              </Text>
+            </Pressable>
 
             <Pressable
               onPress={() => refresh()}

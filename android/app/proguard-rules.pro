@@ -17,4 +17,8 @@
 -keep class com.scrolltracker.** { *; }
 -keep class com.scrolltracker.** { *; }
 -keep class com.scrolltracker.** { *; }
+-keep class com.scrolltracker.** { *; }
+-keep class com.scrolltracker.** { *; }
+-keep class com.scrolltracker.** { *; }
+-keep class com.scrolltracker.** { *; }
 # @generated end expo-build-properties

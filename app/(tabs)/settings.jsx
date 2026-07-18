@@ -38,6 +38,20 @@ export default function SettingsScreen() {
           ok={permissions.notificationsGranted}
           onPress={permissions.requestNotifications}
         />
+        <StatusRow
+          label="Background battery access"
+          ok={permissions.batteryOptimizationIgnored}
+          onPress={permissions.requestBatteryOptimizationExemption}
+        />
+        <Pressable
+          onPress={permissions.openAutostartSettings}
+          className="bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt"
+        >
+          <Text className="text-white">Xiaomi / Vivo / Oppo / Huawei autostart</Text>
+          <Text className="text-muted text-xs mt-0.5">
+            Tap if tracking keeps stopping in the background on these brands
+          </Text>
+        </Pressable>
 
         <SectionTitle title="Alerts" />
         <View className="bg-surface rounded-2xl p-4 mb-3 border border-surfaceAlt">

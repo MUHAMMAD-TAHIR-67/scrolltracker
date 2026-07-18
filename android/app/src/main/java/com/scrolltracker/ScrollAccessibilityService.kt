@@ -46,7 +46,6 @@ class ScrollAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in trackedPackages) return
 
-        val timestamp = System.currentTimeMillis()
         val eventType = when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "window_state_changed"
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> "view_scrolled"
@@ -58,13 +57,10 @@ class ScrollAccessibilityService : AccessibilityService() {
         // package become active, so TrackingService.ts can open a session.
         if (eventType == "window_state_changed" && lastForegroundPackage != packageName) {
             lastForegroundPackage = packageName
-            // Reset state trackers on app switch
-            GestureClassifier.clearBuffer(packageName)
-            AppScreenStateTracker.clearState(packageName)
             ScrollEventBus.publish(
                 ScrollEventBus.Event(
                     packageName = packageName,
-                    timestamp = timestamp,
+                    timestamp = System.currentTimeMillis(),
                     eventType = "app_foreground"
                 )
             )
@@ -77,32 +73,13 @@ class ScrollAccessibilityService : AccessibilityService() {
         }
         val contentDescHint = event.contentDescription?.toString()?.take(40) // hint only, never stored verbatim by JS
 
-        // Update screen state machine
-        val appScreen = AppScreenStateTracker.updateState(packageName, event)
-
-        // Classify gesture if this is a scroll event
-        var swipeDirection: String? = null
-        var isValidVideoCount: Boolean? = null
-        if (eventType == "view_scrolled") {
-            val gestureResult = GestureClassifier.classifyScroll(packageName, event, timestamp)
-            swipeDirection = if (gestureResult.direction != "NONE") gestureResult.direction else null
-            // Video count is valid if:
-            // - We detected a swipe (UP or DOWN)
-            // - We're in VIDEO_FEED state
-            // - It's not a comment scroll
-            isValidVideoCount = swipeDirection != null && appScreen == "VIDEO_FEED"
-        }
-
         ScrollEventBus.publish(
             ScrollEventBus.Event(
                 packageName = packageName,
-                timestamp = timestamp,
+                timestamp = System.currentTimeMillis(),
                 eventType = eventType,
                 viewIdHint = viewIdHint,
-                contentDescHint = contentDescHint,
-                swipeDirection = swipeDirection,
-                appScreen = appScreen,
-                isValidVideoCount = isValidVideoCount
+                contentDescHint = contentDescHint
             )
         )
     }

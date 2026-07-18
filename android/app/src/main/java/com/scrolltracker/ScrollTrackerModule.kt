@@ -1,4 +1,4 @@
-package com.scrolltracker
+﻿package com.scrolltracker
 
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
@@ -8,12 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.TextUtils
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import java.util.concurrent.TimeUnit
 
 class ScrollTrackerModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -35,10 +31,6 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
             putString("eventType", event.eventType)
             event.viewIdHint?.let { putString("viewIdHint", it) }
             event.contentDescHint?.let { putString("contentDescHint", it) }
-            // Emit new gesture/state fields
-            event.swipeDirection?.let { putString("swipeDirection", it) }
-            event.appScreen?.let { putString("appScreen", it) }
-            event.isValidVideoCount?.let { putBoolean("isValidVideoCount", it) }
         }
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -140,10 +132,6 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
                 reactApplicationContext.startService(intent)
             }
             prefs().edit().putBoolean("tracking_active", true).apply()
-            
-            // Schedule background sync job to run every 30 minutes
-            scheduleBackgroundSyncJob()
-            
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("ERR_START_SERVICE", e)
@@ -156,10 +144,6 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
             val intent = Intent(reactApplicationContext, TrackerForegroundService::class.java)
             reactApplicationContext.stopService(intent)
             prefs().edit().putBoolean("tracking_active", false).apply()
-            
-            // Cancel background sync job
-            WorkManager.getInstance(reactApplicationContext).cancelUniqueWork("scroll_tracker_sync")
-            
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("ERR_STOP_SERVICE", e)
@@ -168,22 +152,6 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
 
     private fun prefs() =
         reactApplicationContext.getSharedPreferences("scrolltracker_prefs", Context.MODE_PRIVATE)
-
-    private fun scheduleBackgroundSyncJob() {
-        try {
-            val syncWork = PeriodicWorkRequestBuilder<BackgroundSyncWorker>(
-                30, TimeUnit.MINUTES
-            ).build()
-            WorkManager.getInstance(reactApplicationContext).enqueueUniquePeriodicWork(
-                "scroll_tracker_sync",
-                ExistingPeriodicWorkPolicy.KEEP,
-                syncWork
-            )
-            android.util.Log.d("ScrollTrackerModule", "Background sync job scheduled")
-        } catch (e: Exception) {
-            android.util.Log.e("ScrollTrackerModule", "Failed to schedule background sync job", e)
-        }
-    }
 
     /**
      * Mirrors a small subset of settings from the JS-side SQLite `settings`

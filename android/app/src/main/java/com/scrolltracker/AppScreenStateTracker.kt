@@ -107,23 +107,27 @@ object AppScreenStateTracker {
 
         return when {
             // Check for video feed indicators
-            viewIdHint?.contains(patterns.feedResourcePattern) == true -> "VIDEO_FEED"
+            // NOTE: these patterns are "|"-separated alternations (e.g. "clips_feed|reels_feed"),
+            // so they must be matched as a regex, not with String.contains() (which was
+            // checking for the literal pipe character and could basically never match).
+            viewIdHint != null && patterns.feedResourceRegex.containsMatchIn(viewIdHint) -> "VIDEO_FEED"
             contentDescHint?.contains("feed") == true -> "VIDEO_FEED"
             contentDescHint?.contains("reels") == true -> "VIDEO_FEED"
             contentDescHint?.contains("shorts") == true -> "VIDEO_FEED"
 
             // Check for profile
-            viewIdHint?.contains(patterns.profileResourcePattern) == true -> "PROFILE"
+            viewIdHint != null && patterns.profileResourceRegex.containsMatchIn(viewIdHint) -> "PROFILE"
             contentDescHint?.contains("profile") == true -> "PROFILE"
             contentDescHint?.contains("account") == true -> "PROFILE"
 
             // Check for search
-            viewIdHint?.contains(patterns.searchResourcePattern) == true -> "SEARCH"
+            viewIdHint != null && patterns.searchResourceRegex.containsMatchIn(viewIdHint) -> "SEARCH"
             contentDescHint?.contains("search") == true -> "SEARCH"
             contentDescHint?.contains("explore") == true -> "SEARCH"
 
             // Check for comments
             contentDescHint?.contains("comment") == true -> "COMMENTS_OPEN"
+            viewIdHint != null && viewIdHint.lowercase().contains("comment") -> "COMMENTS_OPEN"
 
             else -> "UNKNOWN"
         }
@@ -147,7 +151,7 @@ object AppScreenStateTracker {
 
             return contentDescHint.contains("comment") ||
                     viewIdHint?.contains("comment") == true ||
-                    viewIdHint?.contains(patterns.commentsPanelResourcePattern) == true
+                    (viewIdHint != null && patterns.commentsPanelResourceRegex.containsMatchIn(viewIdHint))
         } catch (e: Exception) {
             return false
         }
@@ -169,6 +173,15 @@ sealed class PlatformPatterns {
     abstract val profileResourcePattern: String
     abstract val searchResourcePattern: String
     abstract val commentsPanelResourcePattern: String
+
+    // Compiled once per pattern set. These fields are "|"-separated alternations
+    // (e.g. "clips_feed|reels_feed"), so they're matched with Regex.containsMatchIn(),
+    // NOT String.contains() - contains() would look for the literal "|" character
+    // and would essentially never match a real resource-id.
+    val feedResourceRegex: Regex by lazy { Regex(feedResourcePattern, RegexOption.IGNORE_CASE) }
+    val profileResourceRegex: Regex by lazy { Regex(profileResourcePattern, RegexOption.IGNORE_CASE) }
+    val searchResourceRegex: Regex by lazy { Regex(searchResourcePattern, RegexOption.IGNORE_CASE) }
+    val commentsPanelResourceRegex: Regex by lazy { Regex(commentsPanelResourcePattern, RegexOption.IGNORE_CASE) }
 }
 
 class InstagramPatterns : PlatformPatterns() {

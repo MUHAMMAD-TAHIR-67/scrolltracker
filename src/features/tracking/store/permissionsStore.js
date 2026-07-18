@@ -8,11 +8,14 @@ import { getDatabase } from "@/db/database";
  * @property {boolean} accessibilityGranted
  * @property {boolean} usageAccessGranted
  * @property {boolean} notificationsGranted
+ * @property {boolean} batteryOptimizationIgnored
  * @property {boolean} onboardingComplete
  * @property {() => Promise<void>} refresh
  * @property {() => Promise<void>} requestNotifications
  * @property {() => void} openAccessibilitySettings
  * @property {() => void} openUsageAccessSettings
+ * @property {() => void} requestBatteryOptimizationExemption
+ * @property {() => void} openAutostartSettings
  * @property {() => void} completeOnboarding
  */
 
@@ -37,20 +40,23 @@ export const usePermissionsStore = create((set, get) => ({
   accessibilityGranted: false,
   usageAccessGranted: false,
   notificationsGranted: false,
+  batteryOptimizationIgnored: false,
   onboardingComplete: false,
 
   refresh: async () => {
     try {
-      const [accessibility, usage, notif, onboardingComplete] = await Promise.all([
+      const [accessibility, usage, notif, batteryIgnored, onboardingComplete] = await Promise.all([
         ScrollTrackerNative.isAccessibilityServiceEnabled?.() ?? Promise.resolve(false),
         ScrollTrackerNative.isUsageAccessGranted?.() ?? Promise.resolve(false),
         Notifications.getPermissionsAsync().then((r) => r.granted),
+        ScrollTrackerNative.isIgnoringBatteryOptimizations?.() ?? Promise.resolve(false),
         readOnboardingComplete(),
       ]);
       set({
         accessibilityGranted: accessibility,
         usageAccessGranted: usage,
         notificationsGranted: notif,
+        batteryOptimizationIgnored: batteryIgnored,
         onboardingComplete,
       });
     } catch (e) {
@@ -79,6 +85,22 @@ export const usePermissionsStore = create((set, get) => ({
       ScrollTrackerNative.openUsageAccessSettings?.();
     } catch (e) {
       console.warn("Failed to open usage access settings:", e);
+    }
+  },
+
+  requestBatteryOptimizationExemption: async () => {
+    try {
+      await ScrollTrackerNative.requestIgnoreBatteryOptimizations?.();
+    } catch (e) {
+      console.warn("Failed to request battery optimization exemption:", e?.message);
+    }
+  },
+
+  openAutostartSettings: () => {
+    try {
+      ScrollTrackerNative.openAutostartSettings?.();
+    } catch (e) {
+      console.warn("Failed to open autostart settings:", e);
     }
   },
 

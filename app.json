@@ -27,6 +27,7 @@
       "./plugins/withScrollTrackerAccessibility.js",
       "./plugins/withUsageStatsPermission.js",
       "./plugins/withForegroundServicePermission.js",
+      "./plugins/withBatteryOptimizationPermission.js",
       [
         "expo-build-properties",
         {

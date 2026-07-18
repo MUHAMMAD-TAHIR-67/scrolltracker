@@ -38,6 +38,10 @@ object GestureClassifier {
     // Ring buffer of recent scroll events per package
     private val scrollEventBuffer = mutableMapOf<String, MutableList<ScrollEvent>>()
 
+    // Last known absolute scrollY per package, used as a fallback direction signal
+    // when the framework doesn't populate getScrollDeltaY() (pre-API26 or some OEMs).
+    private val lastScrollY = mutableMapOf<String, Int>()
+
     /**
      * Classifies a TYPE_VIEW_SCROLLED event.
      * Returns UP, DOWN, or NONE based on context of recent events.
@@ -48,7 +52,7 @@ object GestureClassifier {
         timestamp: Long
     ): GestureResult {
         // Try to infer direction from event metadata
-        val estimatedDirection = estimateScrollDirection(event)
+        val estimatedDirection = estimateScrollDirection(packageName, event)
         if (estimatedDirection == null) {
             clearBuffer(packageName) // Reset on unknown
             return GestureResult("NONE", 0f)
@@ -83,20 +87,58 @@ object GestureClassifier {
 
     /**
      * Attempt to infer scroll direction from accessibility event.
-     * This is heuristic since the API doesn't give us raw coordinates.
+     * This is heuristic since the API doesn't give us raw touch coordinates or velocity.
      *
      * Returns: UP, DOWN, or null (unknown).
      *
-     * Heuristics:
-     * - If the event.fromIndex < event.toIndex, content scrolled down (user scrolled UP)
-     * - If the event.fromIndex > event.toIndex, content scrolled up (user scrolled DOWN)
-     * - Otherwise, we can't reliably infer direction
+     * IMPORTANT: `event.fromIndex` / `event.toIndex` are populated by AdapterView-style
+     * widgets (ListView/GridView) reporting *item indices* - they are essentially never
+     * set by the RecyclerView/ViewPager2-based feeds that TikTok, Instagram Reels,
+     * YouTube Shorts, and Snapchat Spotlight actually use. Relying on them alone meant
+     * direction detection silently failed most of the time. We now prefer, in order:
+     *
+     *  1. event.scrollDeltaY (API 26+) - the framework-computed pixel delta for this
+     *     scroll event. Most reliable when available.
+     *  2. A manually tracked delta: current event.scrollY minus the last scrollY we saw
+     *     for this package. Works on all API levels since scrollY has been available
+     *     since API 21, at the cost of being one event "behind" on the very first sample.
+     *  3. fromIndex/toIndex, kept only as a last-resort fallback for any AdapterView-based
+     *     screens that do report them (e.g. some in-app lists outside the main feed).
+     *
+     * Sign convention: a negative deltaY (content moved up / revealed content below)
+     * corresponds to the user swiping UP (finger moves up, next video appears).
+     * A positive deltaY corresponds to swiping DOWN. This matches Android's standard
+     * scroll convention but has NOT been verified against real devices for every one
+     * of these four apps - if counts still look inverted after this fix, flip the
+     * two branches below rather than re-deriving the whole heuristic.
      */
-    private fun estimateScrollDirection(event: AccessibilityEvent): String? {
+    private fun estimateScrollDirection(packageName: String, event: AccessibilityEvent): String? {
+        try {
+            val deltaY = event.scrollDeltaY
+            if (deltaY != 0) {
+                return if (deltaY < 0) "UP" else "DOWN"
+            }
+        } catch (_: Exception) {
+            // getScrollDeltaY() can throw on some OEM AccessibilityEvent implementations - ignore and fall through.
+        }
+
+        try {
+            val scrollY = event.scrollY
+            if (scrollY != -1) {
+                val previous = lastScrollY[packageName]
+                lastScrollY[packageName] = scrollY
+                if (previous != null && previous != scrollY) {
+                    return if (scrollY < previous) "UP" else "DOWN"
+                }
+                if (previous == null) return null // first sample for this package, no delta yet
+            }
+        } catch (_: Exception) {
+            // fall through to the AdapterView-index fallback
+        }
+
         return try {
             val fromIndex = event.fromIndex
             val toIndex = event.toIndex
-
             when {
                 fromIndex >= 0 && toIndex >= 0 && fromIndex != toIndex -> {
                     if (toIndex > fromIndex) "UP" else "DOWN"
@@ -113,6 +155,7 @@ object GestureClassifier {
      */
     fun clearBuffer(packageName: String) {
         scrollEventBuffer.remove(packageName)
+        lastScrollY.remove(packageName)
     }
 
     /**
@@ -120,5 +163,6 @@ object GestureClassifier {
      */
     fun clearAllBuffers() {
         scrollEventBuffer.clear()
+        lastScrollY.clear()
     }
 }
