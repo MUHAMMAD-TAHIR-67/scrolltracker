@@ -64,6 +64,10 @@
  * @property {"window_state_changed"|"view_scrolled"|"content_changed"|"app_foreground"|"app_background"} eventType
  * @property {string} [viewIdHint] - resourceId of the changed node, when available
  * @property {string} [contentDescHint] - content-desc text, when available (no video text/captions)
+ * @property {number} [scrollDeltaX] - raw AccessibilityEvent#getScrollDeltaX (API 28+ only)
+ * @property {number} [scrollDeltaY] - raw AccessibilityEvent#getScrollDeltaY (API 28+ only)
+ * @property {"UP"|"DOWN"|"NONE"} [swipeDirection] - derived in JS by SwipeDirection.js, not sent by native
+ * @property {"VIDEO_FEED"|"COMMENTS_OPEN"|"PROFILE"|"SEARCH"|"OTHER"|"UNKNOWN"} [appScreen] - derived in JS by CommentScrollDetector.js, not sent by native
  */
 
 // Nothing to export at runtime - this file exists for the JSDoc block above.

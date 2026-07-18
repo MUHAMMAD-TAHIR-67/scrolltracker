@@ -1,16 +1,16 @@
 /**
- * SessionEstimator - orchestrates session lifecycle + delegates video counting to SwipeCounter.
+ * SessionEstimator - orchestrates session lifecycle + video counting (hybrid: swipe-based
+ * when native supplies it, structural-heuristic fallback otherwise - see ingest() below).
  *
- * VIDEO COUNTING: swipe-only. A video is counted if and only if SwipeCounter detects
- * an actual vertical swipe while in VIDEO_FEED state, outside comments. See ingest() below.
- *
- * This class itself no longer counts videos from dwell-time/structural-event heuristics -
- * that approach counted TYPE_WINDOW_CONTENT_CHANGED events that fire continuously during
- * normal playback (progress bar, captions, etc.), which behaved like a timer rather than
- * a swipe detector. It's kept only for session open/close bookkeeping.
+ * VIDEO COUNTING: hybrid. SwipeCounter's direct-swipe detection is preferred whenever the
+ * native layer provides swipeDirection + appScreen (it doesn't yet, as of this codebase -
+ * see ingest()'s doc comment). Until then, #countStructural does the actual counting: it
+ * debounces TYPE_VIEW_SCROLLED / TYPE_WINDOW_CONTENT_CHANGED by minDwellMs (so it isn't just
+ * counting elapsed seconds off continuous UI-refresh events like progress bars/captions) and
+ * filters out comment/profile/search scrolls via CommentScrollDetector.
  *
  * @typedef {Object} PlatformHeuristicProfile
- * @property {number} minDwellMs Unused for counting now; kept for the deprecated #ingestHeuristic reference method.
+ * @property {number} minDwellMs Minimum time between counted structural changes - used by #countStructural to reject bounce/overscroll noise.
  * @property {number} loopGraceMs If no event arrives for this long, assume video is on loop (don't double count).
  * @property {number} averageVideoMs Unused - video counting never estimates from elapsed time.
  * @property {number} sessionTimeoutMs Session ends after this much time backgrounded.
@@ -23,6 +23,7 @@
 
 import * as SwipeCounter from "./SwipeCounter.js";
 import * as CommentScrollDetector from "./CommentScrollDetector.js";
+import { deriveSwipeDirection } from "./SwipeDirection.js";
 
 /** @type {Record<string, PlatformHeuristicProfile>} */
 export const PLATFORM_PROFILES = {
@@ -39,15 +40,24 @@ export class SessionEstimator {
   /**
    * Feed a single native event in. Returns what changed so the caller can persist it.
    *
-   * VIDEO COUNTING IS SWIPE-ONLY: per the project's counting formula, a video is only
-   * ever counted on a detected vertical swipe (SwipeCounter.processSwipeEvent), while
-   * in VIDEO_FEED state, outside comments. The old dwell-time heuristic below
-   * (#ingestHeuristic) is kept ONLY for session lifecycle bookkeeping (open/close,
-   * lastEventAt) - it must never itself produce a videoDelta, since
-   * TYPE_WINDOW_CONTENT_CHANGED fires continuously during normal video playback
-   * (progress bar, captions, like-count animations, etc.) for reasons that have
-   * nothing to do with the user swiping. Counting on that event, once dwell time
-   * had elapsed, was effectively counting elapsed seconds rather than thumb movement.
+   * HYBRID COUNTING: SwipeCounter.processSwipeEvent needs event.swipeDirection +
+   * event.appScreen === "VIDEO_FEED". Native (ScrollAccessibilityService.kt) doesn't
+   * send those directly - it sends raw scrollDeltaX/Y pixel offsets (API 28+ only) plus
+   * viewIdHint/contentDescHint. This method derives both fields in JS before handing
+   * the event to SwipeCounter:
+   *   - swipeDirection: SwipeDirection.js turns scrollDeltaY into UP/DOWN/NONE by sign
+   *     and magnitude. Only available on API 28+ and only when the source view reports
+   *     deltas, which is most modern feed containers but not guaranteed for all of
+   *     Instagram/YouTube/TikTok/Snapchat's internal views.
+   *   - appScreen: CommentScrollDetector.resolveAppScreen() classifies via keyword
+   *     matching on viewIdHint/contentDescHint. This is a heuristic, not verified
+   *     against these apps' actual internal resource-ids, and returns UNKNOWN for any
+   *     event that carries no hint at all (common).
+   * Because of those two heuristic gaps, the swipe path will legitimately miss real
+   * swipes in practice. #countStructural (below) is the fallback that still counts
+   * those misses via dwell-time debouncing, so nothing goes uncounted - it's just
+   * lower-confidence than a resolved direct swipe. mergeResults() always prefers the
+   * swipe result when it fires.
    * @param {import("../types").NativeScrollEvent} event
    * @returns {EstimatorResult}
    */
@@ -55,49 +65,43 @@ export class SessionEstimator {
     const profile = PLATFORM_PROFILES[this.#resolvePlatformKey(event.packageName)];
     if (!profile) return { videoDelta: 0 };
 
-    // Session lifecycle bookkeeping only - never increments videoCount itself.
+    // Session lifecycle bookkeeping (open/close state, lastEventAt for sweepTimeouts).
     this.#updateHeuristicState(event, profile);
 
-    // Source of truth for video counting: an actual detected swipe.
-    return SwipeCounter.processSwipeEvent(event);
+    const enrichedEvent = {
+      ...event,
+      swipeDirection: deriveSwipeDirection(event),
+      appScreen: CommentScrollDetector.resolveAppScreen(event),
+    };
+
+    const swipeResult = SwipeCounter.processSwipeEvent(enrichedEvent);
+    const structuralResult = this.#countStructural(event, profile);
+
+    return SwipeCounter.mergeResults(swipeResult, structuralResult);
   }
 
   /**
-   * @deprecated No longer used to produce video counts - see ingest() above.
-   * Left in place only as a reference/debug utility; not called from ingest().
+   * Structural fallback counter: currently the only path that actually produces
+   * video counts, since native doesn't emit swipe/screen-state data yet (see
+   * ingest() above). Debounces by dwell time and filters out comment/profile/
+   * search scrolls via CommentScrollDetector so it isn't just a timer.
    * @private
    */
-  #ingestHeuristic(event, profile) {
+  #countStructural(event, profile) {
     const key = event.packageName;
-    let state = this.#open.get(key);
-
-    if (event.eventType === "app_background" && state) {
-      // Don't end immediately - give sessionTimeoutMs grace for quick app switches
-      // (handled by the periodic sweep in `sweepTimeouts`).
-      return { videoDelta: 0 };
-    }
-
-    if (!state) {
-      if (event.eventType === "app_foreground" || event.eventType === "window_state_changed") {
-        state = {
-          platformKey: this.#resolvePlatformKey(event.packageName),
-          startedAt: event.timestamp,
-          lastEventAt: event.timestamp,
-          lastStructuralEventAt: event.timestamp,
-          videoCount: 0,
-          events: [],
-        };
-        this.#open.set(key, state);
-      }
-      return { videoDelta: 0 };
-    }
-
-    state.lastEventAt = event.timestamp;
-    const dwell = event.timestamp - state.lastStructuralEventAt;
+    const state = this.#open.get(key);
+    if (!state) return { videoDelta: 0 };
 
     const isStructural = event.eventType === "view_scrolled" || event.eventType === "content_changed";
     if (!isStructural) return { videoDelta: 0 };
 
+    // Same comment-scroll filter the swipe path uses, so structural counting
+    // doesn't inflate video counts while the user is reading comments.
+    if (CommentScrollDetector.isLikelyCommentScroll(event)) {
+      return { videoDelta: 0 };
+    }
+
+    const dwell = event.timestamp - state.lastStructuralEventAt;
     if (dwell < profile.minDwellMs) {
       // Too soon since the last counted change - likely a bounce/overscroll, not a new video.
       return { videoDelta: 0 };
@@ -108,7 +112,8 @@ export class SessionEstimator {
       : event.contentDescHint
       ? "content_desc_change"
       : "scroll_gesture";
-    const confidence = detection === "view_id_change" ? 0.95 : detection === "content_desc_change" ? 0.85 : 0.6;
+    // Slightly lower confidence than a direct swipe (0.95), since this is inferred.
+    const confidence = detection === "view_id_change" ? 0.85 : detection === "content_desc_change" ? 0.75 : 0.5;
 
     state.videoCount += 1;
     state.lastStructuralEventAt = event.timestamp;

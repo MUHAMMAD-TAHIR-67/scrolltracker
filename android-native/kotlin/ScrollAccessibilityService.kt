@@ -1,6 +1,7 @@
 package com.scrolltracker
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.util.Log
 
@@ -73,13 +74,36 @@ class ScrollAccessibilityService : AccessibilityService() {
         }
         val contentDescHint = event.contentDescription?.toString()?.take(40) // hint only, never stored verbatim by JS
 
+        // getScrollDeltaX/Y were added in API 28 (Android 9) and only carry a
+        // meaningful value on typeViewScrolled from a scroll container that
+        // reports it (most modern RecyclerView/ViewPager2-based feeds do).
+        // On older OS versions, or when unsupported, both stay null and JS
+        // falls back to the structural (dwell + view-id-change) heuristic -
+        // see SessionEstimator.js#countStructural.
+        var scrollDeltaX: Int? = null
+        var scrollDeltaY: Int? = null
+        if (eventType == "view_scrolled" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                val dx = event.scrollDeltaX
+                val dy = event.scrollDeltaY
+                if (dx != 0 || dy != 0) {
+                    scrollDeltaX = dx
+                    scrollDeltaY = dy
+                }
+            } catch (_: Exception) {
+                // Source view didn't report deltas - leave null, structural fallback handles it.
+            }
+        }
+
         ScrollEventBus.publish(
             ScrollEventBus.Event(
                 packageName = packageName,
                 timestamp = System.currentTimeMillis(),
                 eventType = eventType,
                 viewIdHint = viewIdHint,
-                contentDescHint = contentDescHint
+                contentDescHint = contentDescHint,
+                scrollDeltaX = scrollDeltaX,
+                scrollDeltaY = scrollDeltaY
             )
         )
     }

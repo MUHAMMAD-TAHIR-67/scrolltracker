@@ -32,6 +32,10 @@ const VIDEO_FEED_KEYWORDS = [
   "discover",
 ];
 
+const PROFILE_KEYWORDS = ["profile", "avatar", "bio", "following", "followers"];
+
+const SEARCH_KEYWORDS = ["search", "explore", "hashtag", "query"];
+
 /**
  * Analyze a scroll event to determine if it's likely a comment scroll.
  * Returns true if we believe the user was scrolling in a comments panel.
@@ -69,23 +73,58 @@ export function isLikelyCommentScroll(event) {
 }
 
 /**
- * Get a classification label for a scroll event for logging/debugging.
+ * Classify a scroll event using only viewIdHint/contentDescHint keyword
+ * matching - it does NOT read event.appScreen (that field is derived FROM
+ * this function via resolveAppScreen() below, not the other way around;
+ * this function previously read event.appScreen here, which nothing ever
+ * set, so it silently fell through to UNKNOWN_SCROLL for every non-comment
+ * event).
  */
 export function classifyScrollEvent(event) {
   if (isLikelyCommentScroll(event)) {
     return "COMMENT_SCROLL";
   }
 
-  if (event.appScreen === "VIDEO_FEED") {
+  const viewIdLower = event.viewIdHint?.toLowerCase() ?? "";
+  const descLower = event.contentDescHint?.toLowerCase() ?? "";
+
+  if (VIDEO_FEED_KEYWORDS.some((kw) => viewIdLower.includes(kw) || descLower.includes(kw))) {
     return "VIDEO_SCROLL";
   }
 
-  if (event.appScreen === "PROFILE" || event.appScreen === "SEARCH") {
+  if (
+    PROFILE_KEYWORDS.some((kw) => viewIdLower.includes(kw) || descLower.includes(kw)) ||
+    SEARCH_KEYWORDS.some((kw) => viewIdLower.includes(kw) || descLower.includes(kw))
+  ) {
     return "OTHER_SCROLL";
   }
 
-  // Unknown context - conservative: don't count
+  // No positive keyword match either way - conservative: don't count as video.
+  // In practice this fires often, since a lot of real scroll events carry no
+  // resource-id/content-desc hint at all (Android only attaches one when the
+  // app itself sets it). That's expected: the structural fallback in
+  // SessionEstimator.js#countStructural is what catches those, not this path.
   return "UNKNOWN_SCROLL";
+}
+
+/**
+ * Maps classifyScrollEvent's label onto the appScreen values SwipeCounter.js
+ * expects. This is what SessionEstimator calls to derive event.appScreen
+ * before handing the event to SwipeCounter - see SessionEstimator.js#ingest.
+ * @param {import("../types").NativeScrollEvent} event
+ * @returns {"VIDEO_FEED"|"COMMENTS_OPEN"|"OTHER"|"UNKNOWN"}
+ */
+export function resolveAppScreen(event) {
+  switch (classifyScrollEvent(event)) {
+    case "VIDEO_SCROLL":
+      return "VIDEO_FEED";
+    case "COMMENT_SCROLL":
+      return "COMMENTS_OPEN";
+    case "OTHER_SCROLL":
+      return "OTHER";
+    default:
+      return "UNKNOWN";
+  }
 }
 
 /**
