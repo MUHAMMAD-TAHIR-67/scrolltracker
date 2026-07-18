@@ -17,8 +17,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  *    next time JS calls `drainPendingEvents()` (see TrackingService.ts).
  *
  * The buffer is intentionally small and lightweight: only timestamps,
- * package names, event type, and optional resource-id/content-desc hints -
- * never any rendered text or video content.
+ * package names, event type, optional resource-id/content-desc hints, and
+ * (for typeViewScrolled) raw scroll-delta pixel offsets - never any rendered
+ * text or video content.
  */
 object ScrollEventBus {
     data class Event(
@@ -26,7 +27,13 @@ object ScrollEventBus {
         val timestamp: Long,
         val eventType: String, // matches NativeScrollEvent["eventType"] on the JS side
         val viewIdHint: String? = null,
-        val contentDescHint: String? = null
+        val contentDescHint: String? = null,
+        // Raw AccessibilityEvent#getScrollDeltaX/Y (API 28+ only, null below that or
+        // when the source view doesn't report deltas). JS derives swipe direction from
+        // these rather than native guessing UP/DOWN, so the sign/threshold logic can be
+        // tuned per platform without a native rebuild - see SwipeDirection.js.
+        val scrollDeltaX: Int? = null,
+        val scrollDeltaY: Int? = null
     )
 
     private const val MAX_BUFFER = 500
