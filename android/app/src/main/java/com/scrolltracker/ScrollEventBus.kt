@@ -32,34 +32,90 @@ object ScrollEventBus {
         val isValidVideoCount: Boolean? = null // pre-calculated validity (new field)
     )
 
-    private const val MAX_BUFFER = 500
+    private const val MAX_BUFFER = 5000
 
     private val buffer = ArrayDeque<Event>()
     private val listeners = CopyOnWriteArrayList<(Event) -> Unit>()
+    private val bufferLock = java.lang.Object()  // Explicit lock for buffer operations
 
+    /**
+     * Thread-safe publish. Called from accessibility service thread.
+     * If listeners are active, emit directly. Otherwise, buffer the event
+     * in a ring buffer (drop oldest if full).
+     */
     @Synchronized
     fun publish(event: Event) {
+        if (event == null) {
+            android.util.Log.w("ScrollEventBus", "Attempt to publish null event")
+            return
+        }
+        
         val activeListeners = listeners.toList()
         if (activeListeners.isEmpty()) {
-            if (buffer.size >= MAX_BUFFER) buffer.poll()
-            buffer.add(event)
+            synchronized(bufferLock) {
+                if (buffer.size >= MAX_BUFFER) {
+                    buffer.poll()  // Drop oldest to make room
+                }
+                buffer.add(event)
+            }
         } else {
-            activeListeners.forEach { it(event) }
+            activeListeners.forEach { listener ->
+                try {
+                    listener(event)
+                } catch (e: Exception) {
+                    android.util.Log.e("ScrollEventBus", "Listener exception", e)
+                }
+            }
         }
     }
 
+    /**
+     * Thread-safe listener registration.
+     */
     fun addListener(listener: (Event) -> Unit) {
-        listeners.add(listener)
+        if (listener != null) {
+            listeners.add(listener)
+        }
     }
 
+    /**
+     * Thread-safe listener removal.
+     */
     fun removeListener(listener: (Event) -> Unit) {
-        listeners.remove(listener)
+        if (listener != null) {
+            listeners.remove(listener)
+        }
     }
 
+    /**
+     * Thread-safe drain operation. Called from JS thread (React Native).
+     * Atomically returns and clears the buffer.
+     */
     @Synchronized
     fun drainPending(): List<Event> {
-        val drained = buffer.toList()
-        buffer.clear()
-        return drained
+        return synchronized(bufferLock) {
+            val drained = buffer.toList()
+            buffer.clear()
+            drained
+        }
+    }
+
+    /**
+     * Get current buffer size (for diagnostics).
+     */
+    fun getBufferSize(): Int {
+        return synchronized(bufferLock) {
+            buffer.size
+        }
+    }
+
+    /**
+     * Clear buffer (for app reset scenarios).
+     */
+    fun clear() {
+        synchronized(bufferLock) {
+            buffer.clear()
+            listeners.clear()
+        }
     }
 }
