@@ -52,6 +52,12 @@ export function isLikelyCommentScroll(event) {
     if (COMMENT_KEYWORDS.some((kw) => viewIdLower.includes(kw))) {
       return true;
     }
+    // Platform-specific comment panel patterns
+    if (viewIdLower.includes("comment_list") || 
+        viewIdLower.includes("comment_recyclerview") ||
+        viewIdLower.includes("bottom_sheet")) {
+      return true;
+    }
   }
 
   // Check content-description hints

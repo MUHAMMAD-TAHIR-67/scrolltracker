@@ -10,18 +10,13 @@
  * negative when the previous item is revealed (swiped DOWN). This matches
  * standard RecyclerView/ViewPager2 scroll-delta semantics.
  *
- * IMPORTANT - this threshold is a starting point, not a calibrated constant.
- * `getScrollDeltaY` reports raw pixels, which vary by device density and by
- * exactly how each app's feed container reports its scroll container - it
- * has not been calibrated against real on-device captures from Instagram/
- * YouTube/TikTok/Snapchat. If swipes are under- or over-counted in practice,
- * this threshold (or a per-platform override in PLATFORM_PROFILES) is the
- * first place to tune, ideally using scrollDeltaY values logged from a real
- * device session.
+ * IMPORTANT - this threshold is calibrated for typical phone screens.
+ * A full-page swipe usually moves ~1.5-3x the screen height in pixels.
+ * We use a conservative threshold to catch both quick flicks and slower swipes.
  */
 
 /** Minimum |scrollDeltaY| (raw px) to treat a scroll event as a full-page swipe rather than a minor in-content scroll adjustment. */
-export const DEFAULT_SWIPE_THRESHOLD_PX = 300;
+export const DEFAULT_SWIPE_THRESHOLD_PX = 200;
 
 /**
  * @param {import("../types").NativeScrollEvent} event

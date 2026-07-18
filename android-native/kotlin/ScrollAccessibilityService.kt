@@ -29,6 +29,12 @@ import android.util.Log
  * dwell time, loop detection) happens in JS (SessionEstimator.ts) so the
  * heuristic can be iterated on without a native rebuild. This service's job
  * is only to forward candidate structural signals cheaply.
+ *
+ * CRITICAL FOR SWIPE DETECTION: We capture scrollDeltaX/Y on BOTH
+ * TYPE_VIEW_SCROLLED and TYPE_WINDOW_CONTENT_CHANGED events. Many feeds
+ * (especially TikTok and Instagram Reels) emit WINDOW_CONTENT_CHANGED
+ * without VIEW_SCROLLED when videos transition, so we need deltas on both
+ * event types for reliable swipe direction detection.
  */
 class ScrollAccessibilityService : AccessibilityService() {
 
@@ -41,6 +47,9 @@ class ScrollAccessibilityService : AccessibilityService() {
     )
 
     private var lastForegroundPackage: String? = null
+    
+    // Track last scroll deltas to detect direction changes across event types
+    private val lastScrollDeltas = mutableMapOf<String, Pair<Int?, Int?>>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -80,18 +89,37 @@ class ScrollAccessibilityService : AccessibilityService() {
         // On older OS versions, or when unsupported, both stay null and JS
         // falls back to the structural (dwell + view-id-change) heuristic -
         // see SessionEstimator.js#countStructural.
+        //
+        // CRITICAL FIX: Capture deltas on BOTH view_scrolled AND content_changed
+        // events. Many vertical feeds emit content_changed without view_scrolled
+        // when transitioning between videos, especially TikTok and Instagram Reels.
         var scrollDeltaX: Int? = null
         var scrollDeltaY: Int? = null
-        if (eventType == "view_scrolled" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val shouldCaptureDeltas = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                (eventType == "view_scrolled" || eventType == "content_changed")
+        
+        if (shouldCaptureDeltas) {
             try {
                 val dx = event.scrollDeltaX
                 val dy = event.scrollDeltaY
                 if (dx != 0 || dy != 0) {
                     scrollDeltaX = dx
                     scrollDeltaY = dy
+                    // Store for cross-event-type tracking
+                    lastScrollDeltas[packageName] = Pair(dx, dy)
                 }
             } catch (_: Exception) {
                 // Source view didn't report deltas - leave null, structural fallback handles it.
+            }
+        }
+        
+        // If no deltas on this event but we have recent ones from same package,
+        // attach them as context for JS-side swipe detection
+        if (scrollDeltaX == null && scrollDeltaY == null) {
+            val lastDelta = lastScrollDeltas[packageName]
+            if (lastDelta != null) {
+                scrollDeltaX = lastDelta.first
+                scrollDeltaY = lastDelta.second
             }
         }
 
