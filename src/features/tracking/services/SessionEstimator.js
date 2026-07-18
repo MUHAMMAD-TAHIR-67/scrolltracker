@@ -34,7 +34,7 @@ export const PLATFORM_PROFILES = {
 };
 
 export class SessionEstimator {
-  /** @type {Map<string, {platformKey: string, startedAt: number, lastEventAt: number, lastStructuralEventAt: number, videoCount: number, events: Array<{occurredAt: number, confidence: number, detection: string}>}>} */
+  /** @type {Map<string, {platformKey: string, startedAt: number, lastEventAt: number, lastStructuralEventAt: number, lastViewIdHint: string|null, lastContentDescHint: string|null, videoCount: number, events: Array<{occurredAt: number, confidence: number, detection: string}>}>} */
   #open = new Map();
 
   /**
@@ -81,10 +81,15 @@ export class SessionEstimator {
   }
 
   /**
-   * Structural fallback counter: currently the only path that actually produces
-   * video counts, since native doesn't emit swipe/screen-state data yet (see
-   * ingest() above). Debounces by dwell time and filters out comment/profile/
-   * search scrolls via CommentScrollDetector so it isn't just a timer.
+   * Structural fallback counter: counts video transitions when swipe detection
+   * is unavailable (older Android, or feeds that don't report scrollDeltaY).
+   * Debounces by dwell time and filters out comment/profile/search scrolls
+   * via CommentScrollDetector so it isn't just a timer.
+   * 
+   * CRITICAL FIX: We now also track viewIdHint changes to detect video
+   * transitions more reliably. Many feeds change the view ID when moving
+   * between videos (e.g., different RecyclerView item IDs), which is a
+   * stronger signal than just timing.
    * @private
    */
   #countStructural(event, profile) {
@@ -102,9 +107,24 @@ export class SessionEstimator {
     }
 
     const dwell = event.timestamp - state.lastStructuralEventAt;
-    if (dwell < profile.minDwellMs) {
-      // Too soon since the last counted change - likely a bounce/overscroll, not a new video.
-      return { videoDelta: 0 };
+    
+    // Check for view ID change - strong signal of video transition
+    const hasViewIdChange = event.viewIdHint && event.viewIdHint !== state.lastViewIdHint;
+    const hasContentDescChange = event.contentDescHint && event.contentDescHint !== state.lastContentDescHint;
+    
+    // If we have a view ID or content-desc change, count it regardless of dwell
+    // (but still require minimum dwell to avoid double-counting rapid bounces)
+    const minDwellForViewChange = 150; // shorter dwell for explicit view changes
+    
+    if (hasViewIdChange || hasContentDescChange) {
+      if (dwell < minDwellForViewChange) {
+        return { videoDelta: 0 };
+      }
+    } else {
+      // No explicit view change - use standard dwell threshold
+      if (dwell < profile.minDwellMs) {
+        return { videoDelta: 0 };
+      }
     }
 
     const detection = event.viewIdHint
@@ -117,6 +137,8 @@ export class SessionEstimator {
 
     state.videoCount += 1;
     state.lastStructuralEventAt = event.timestamp;
+    state.lastViewIdHint = event.viewIdHint;
+    state.lastContentDescHint = event.contentDescHint;
     const newEvent = { occurredAt: event.timestamp, confidence, detection };
     state.events.push(newEvent);
 
@@ -139,6 +161,8 @@ export class SessionEstimator {
           startedAt: event.timestamp,
           lastEventAt: event.timestamp,
           lastStructuralEventAt: event.timestamp,
+          lastViewIdHint: null,
+          lastContentDescHint: null,
           videoCount: 0,
           events: [],
         };
