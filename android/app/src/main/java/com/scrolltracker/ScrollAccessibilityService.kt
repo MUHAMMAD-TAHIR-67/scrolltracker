@@ -53,6 +53,9 @@ class ScrollAccessibilityService : AccessibilityService() {
     
     // Track state per package to properly detect screen transitions
     private val packageStates = mutableMapOf<String, String>()
+    
+    // Track last scroll deltas to detect direction changes across event types
+    private val lastScrollDeltas = mutableMapOf<String, Pair<Int?, Int?>>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -102,18 +105,37 @@ class ScrollAccessibilityService : AccessibilityService() {
         // On older OS versions, or when unsupported, both stay null and JS
         // falls back to the structural (dwell + view-id-change) heuristic -
         // see SessionEstimator.js#countStructural.
+        //
+        // CRITICAL FIX: Capture deltas on BOTH view_scrolled AND content_changed
+        // events. Many vertical feeds emit content_changed without view_scrolled
+        // when transitioning between videos, especially TikTok and Instagram Reels.
         var scrollDeltaX: Int? = null
         var scrollDeltaY: Int? = null
-        if (eventType == "view_scrolled" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val shouldCaptureDeltas = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                (eventType == "view_scrolled" || eventType == "content_changed")
+        
+        if (shouldCaptureDeltas) {
             try {
                 val dx = event.scrollDeltaX
                 val dy = event.scrollDeltaY
                 if (dx != 0 || dy != 0) {
                     scrollDeltaX = dx
                     scrollDeltaY = dy
+                    // Store for cross-event-type tracking
+                    lastScrollDeltas[packageName] = Pair(dx, dy)
                 }
             } catch (_: Exception) {
                 // Source view didn't report deltas - leave null, structural fallback handles it.
+            }
+        }
+        
+        // If no deltas on this event but we have recent ones from same package,
+        // attach them as context for JS-side swipe detection
+        if (scrollDeltaX == null && scrollDeltaY == null) {
+            val lastDelta = lastScrollDeltas[packageName]
+            if (lastDelta != null) {
+                scrollDeltaX = lastDelta.first
+                scrollDeltaY = lastDelta.second
             }
         }
 
@@ -158,5 +180,6 @@ class ScrollAccessibilityService : AccessibilityService() {
         // Clear all states on destroy
         AppScreenStateTracker.clearAllStates()
         packageStates.clear()
+        lastScrollDeltas.clear()
     }
 }
