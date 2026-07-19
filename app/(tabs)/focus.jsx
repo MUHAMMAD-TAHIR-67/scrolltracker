@@ -18,8 +18,8 @@ export default function FocusScreen() {
       <View className="flex-1 px-6 items-center justify-center">
         {isActive ? (
           <>
-            <MaterialCommunityIcons name="timer" size={48} color="#D0BCFF" style={{ marginBottom: 24 }} />
-            <View className="w-64 h-64 rounded-full border-8 border-surfaceContainerHighest items-center justify-center mb-8">
+            <MaterialCommunityIcons name="timer" size={48} color="#6366F1" style={{ marginBottom: 24 }} />
+            <View className="w-64 h-64 rounded-full border-8 border-surfaceLight items-center justify-center mb-8">
               <View
                 className="absolute w-64 h-64 rounded-full border-8 border-primary"
                 style={{
@@ -27,31 +27,31 @@ export default function FocusScreen() {
                   transform: [{ rotate: `${progress * 360}deg` }],
                 }}
               />
-              <Text className="text-onSurface text-display-large font-light">
+              <Text className="text-text text-3xl font-bold">
                 {minutes}:{seconds.toString().padStart(2, "0")}
               </Text>
-              <Text className="text-onSurfaceVariant text-body-medium mt-2">remaining</Text>
+              <Text className="text-textMuted text-sm mt-2">remaining</Text>
             </View>
-            <Text className="text-onSurfaceVariant text-body-medium text-center mb-8 px-6">
+            <Text className="text-textMuted text-base text-center mb-8 px-6">
               Short-form apps will alert you if opened during this session.
             </Text>
             <Pressable
               onPress={() => end(true)}
-              className="bg-errorContainer/20 border border-outline rounded-2xl px-6 py-4 flex-row items-center gap-3 active:opacity-70"
+              className="bg-error/10 border border-error rounded-xl px-6 py-4 flex-row items-center gap-3 active:opacity-70"
               accessibilityRole="button"
               accessibilityLabel="End focus session"
             >
-              <MaterialCommunityIcons name="stop-circle" size={24} color="#F2B8B5" />
-              <Text className="text-error text-label-large font-medium">End Focus Session</Text>
+              <MaterialCommunityIcons name="stop-circle" size={24} color="#EF4444" />
+              <Text className="text-error text-base font-semibold">End Focus Session</Text>
             </Pressable>
           </>
         ) : (
           <>
-            <MaterialCommunityIcons name="brain" size={48} color="#D0BCFF" style={{ marginBottom: 24 }} />
-            <Text className="text-onBackground text-headline-medium font-normal mb-2 text-center">
+            <MaterialCommunityIcons name="brain" size={48} color="#6366F1" style={{ marginBottom: 24 }} />
+            <Text className="text-text text-2xl font-bold mb-2 text-center">
               Focus Mode
             </Text>
-            <Text className="text-onSurfaceVariant text-body-medium text-center mb-10 px-6">
+            <Text className="text-textMuted text-base text-center mb-10 px-6">
               Start a session and get alerted the moment you open Reels, Shorts, TikTok, or Spotlight.
             </Text>
             <View className="flex-row flex-wrap gap-4 justify-center">
@@ -59,13 +59,13 @@ export default function FocusScreen() {
                 <Pressable
                   key={min}
                   onPress={() => start(min * 60_000)}
-                  className="bg-surfaceContainer border border-outlineVariant rounded-2xl px-6 py-5 items-center active:opacity-70"
+                  className="bg-surface border border-gray-700 rounded-xl px-6 py-5 items-center active:opacity-70"
                   accessibilityRole="button"
                   accessibilityLabel={`Start ${min} minute focus session`}
                 >
-                  <MaterialCommunityIcons name="clock-outline" size={24} color="#80DEEA" style={{ marginBottom: 8 }} />
-                  <Text className="text-onSurface text-headline-small font-light">{min}</Text>
-                  <Text className="text-onSurfaceVariant text-label-small">min</Text>
+                  <MaterialCommunityIcons name="clock-outline" size={24} color="#22C55E" style={{ marginBottom: 8 }} />
+                  <Text className="text-text text-2xl font-bold">{min}</Text>
+                  <Text className="text-textMuted text-xs">min</Text>
                 </Pressable>
               ))}
             </View>

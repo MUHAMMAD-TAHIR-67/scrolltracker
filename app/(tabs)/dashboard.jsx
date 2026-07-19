@@ -54,21 +54,21 @@ export default function DashboardScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
-        className="px-6 pt-2"
+        className="px-5 pt-2"
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            tintColor="#D0BCFF" 
+            tintColor="#6366F1" 
           />
         }
       >
         {/* Header */}
         <View className="mb-6 mt-2">
-          <Text className="text-onBackground text-display-small font-normal mb-1">
+          <Text className="text-text text-3xl font-bold mb-1">
             Dashboard
           </Text>
-          <Text className="text-onSurfaceVariant text-body-medium">
+          <Text className="text-textMuted text-base">
             Track your short-form video usage
           </Text>
         </View>
@@ -97,35 +97,35 @@ export default function DashboardScreen() {
         <PermissionGateBanner missingCount={missingPermissions} />
 
         {/* Today's Summary Card */}
-        <Card title="Today's Overview" icon="today" iconColor="#D0BCFF">
+        <Card title="Today's Overview" icon="today" iconColor="#6366F1">
           <View className="flex-row gap-4 mb-4">
-            <View className="flex-1 bg-surfaceContainerHighest rounded-2xl p-4">
+            <View className="flex-1 bg-surfaceLight rounded-xl p-4">
               <View className="flex-row items-center gap-2 mb-2">
-                <MaterialCommunityIcons name="eye-outline" size={18} color="#80DEEA" />
-                <Text className="text-onSurfaceDisabled text-label-medium">Videos</Text>
+                <MaterialCommunityIcons name="eye-outline" size={18} color="#22C55E" />
+                <Text className="text-textMuted text-sm">Videos</Text>
               </View>
-              <Text className="text-onSurface text-headline-medium font-light">
+              <Text className="text-text text-2xl font-bold">
                 {totalVideosToday}
               </Text>
             </View>
-            <View className="flex-1 bg-surfaceContainerHighest rounded-2xl p-4">
+            <View className="flex-1 bg-surfaceLight rounded-xl p-4">
               <View className="flex-row items-center gap-2 mb-2">
-                <MaterialCommunityIcons name="clock-outline" size={18} color="#D0BCFF" />
-                <Text className="text-onSurfaceDisabled text-label-medium">Time</Text>
+                <MaterialCommunityIcons name="clock-outline" size={18} color="#6366F1" />
+                <Text className="text-textMuted text-sm">Time</Text>
               </View>
-              <Text className="text-onSurface text-headline-medium font-light">
+              <Text className="text-text text-2xl font-bold">
                 {formatTotalTime(totalTimeTodayMs)}
               </Text>
             </View>
           </View>
           
-          <View className="bg-primaryContainer/20 rounded-xl px-4 py-3 flex-row items-center gap-3">
-            <MaterialCommunityIcons name="trending-up" size={20} color="#D0BCFF" />
+          <View className="bg-primary/10 rounded-xl px-4 py-3 flex-row items-center gap-3">
+            <MaterialCommunityIcons name="trending-up" size={20} color="#6366F1" />
             <View className="flex-1">
-              <Text className="text-onSurfaceVariant text-label-large font-medium">
+              <Text className="text-text text-sm font-semibold">
                 Stay mindful
               </Text>
-              <Text className="text-onSurfaceDisabled text-label-small">
+              <Text className="text-textMuted text-xs">
                 Track your progress throughout the day
               </Text>
             </View>
@@ -134,13 +134,13 @@ export default function DashboardScreen() {
 
         {/* Platform Cards Section */}
         <View className="mb-2">
-          <Text className="text-onSurfaceVariant text-title-medium font-medium mb-4">
+          <Text className="text-text text-lg font-semibold mb-4">
             Platforms
           </Text>
           
           {trackingState.isLoading ? (
-            <View className="bg-surfaceContainer rounded-2xl p-6 items-center">
-              <Text className="text-onSurfaceVariant text-body-medium">Loading...</Text>
+            <View className="bg-surface rounded-xl p-6 items-center">
+              <Text className="text-textMuted text-base">Loading...</Text>
             </View>
           ) : (
             trackingState.platforms.map((platform) => {

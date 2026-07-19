@@ -37,20 +37,20 @@ export default function GoalsScreen() {
       <ScrollView className="px-6 pt-2">
         {/* Header */}
         <View className="mb-6 mt-2">
-          <Text className="text-onBackground text-display-small font-normal mb-1">
+          <Text className="text-text text-3xl font-bold mb-1">
             Daily Goals
           </Text>
-          <Text className="text-onSurfaceVariant text-body-medium">
+          <Text className="text-textMuted text-base">
             Set limits to stay mindful of your usage
           </Text>
         </View>
 
         {/* Info Card */}
-        <View className="bg-primaryContainer/20 rounded-2xl p-4 mb-6 border border-outlineVariant flex-row items-start gap-3">
-          <MaterialCommunityIcons name="information-outline" size={24} color="#D0BCFF" style={{ marginTop: 2 }} />
+        <View className="bg-primary/10 rounded-xl p-4 mb-6 border border-gray-700 flex-row items-start gap-3">
+          <MaterialCommunityIcons name="information-outline" size={24} color="#6366F1" style={{ marginTop: 2 }} />
           <View className="flex-1">
-            <Text className="text-onSurfaceVariant text-title-small font-medium mb-1">How it works</Text>
-            <Text className="text-onSurfaceVariant text-body-small leading-5">
+            <Text className="text-text text-sm font-semibold mb-1">How it works</Text>
+            <Text className="text-textMuted text-xs leading-5">
               Set a daily video-count limit per platform. Focus Mode will alert you when you go over your limit.
             </Text>
           </View>
