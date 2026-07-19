@@ -16,14 +16,14 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "ScrollTrackerModule"
 
+    private val busListener: (ScrollEventBus.Event) -> Unit = { event ->
+        emitToJs(event)
+    }
+
     init {
         // Initialize ScrollEventBus with application context for persistence
         ScrollEventBus.init(reactContext.applicationContext)
         ScrollEventBus.addListener(busListener)
-    }
-
-    private val busListener: (ScrollEventBus.Event) -> Unit = { event ->
-        emitToJs(event)
     }
 
     private fun emitToJs(event: ScrollEventBus.Event) {

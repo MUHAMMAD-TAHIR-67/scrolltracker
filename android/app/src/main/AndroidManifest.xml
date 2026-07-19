@@ -27,18 +27,20 @@
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
-    
-    <!-- AccessibilityService for tracking scroll events in supported apps -->
     <service android:name="com.scrolltracker.ScrollAccessibilityService" android:label="ScrollTracker Monitoring" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
       <intent-filter>
         <action android:name="android.accessibilityservice.AccessibilityService"/>
       </intent-filter>
       <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config"/>
     </service>
-    
-    <!-- ForegroundService to keep tracking alive and handle background execution -->
     <service android:name="com.scrolltracker.TrackerForegroundService" android:foregroundServiceType="dataSync" android:exported="false"/>
-    
+    <service android:name="com.scrolltracker.ScrollAccessibilityService" android:label="ScrollTracker Monitoring" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService"/>
+      </intent-filter>
+      <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config"/>
+    </service>
+    <service android:name="com.scrolltracker.TrackerForegroundService" android:foregroundServiceType="dataSync" android:exported="false"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
@@ -51,8 +53,11 @@
         <data android:scheme="exp+scrolltracker"/>
       </intent-filter>
     </activity>
-    
-    <!-- BootReceiver to restart tracking after device reboot -->
+    <receiver android:name="com.scrolltracker.BootReceiver" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED"/>
+      </intent-filter>
+    </receiver>
     <receiver android:name="com.scrolltracker.BootReceiver" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED"/>

@@ -1,7 +1,8 @@
-package com.scrolltracker
+﻿package com.scrolltracker
 
+
+import com.anonymous.scrolltracker.BuildConfig
 import android.accessibilityservice.AccessibilityService
-import android.content.Intent
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.util.Log
@@ -30,14 +31,12 @@ import android.util.Log
  * dwell time, loop detection) happens in JS (SessionEstimator.ts) so the
  * heuristic can be iterated on without a native rebuild. This service's job
  * is only to forward candidate structural signals cheaply.
- * 
- * CRITICAL: This service operates INDEPENDENTLY from the app UI. Once the
- * Accessibility permission is granted, tracking continues even if the app
- * process is killed, because:
- * 1. The service runs in its own process bound by the system
- * 2. TrackerForegroundService keeps the process alive with START_STICKY
- * 3. Events are buffered in ScrollEventBus until JS runtime is available
- * 4. BootReceiver restarts the ForegroundService after reboot
+ *
+ * CRITICAL FOR SWIPE DETECTION: We capture scrollDeltaX/Y on BOTH
+ * TYPE_VIEW_SCROLLED and TYPE_WINDOW_CONTENT_CHANGED events. Many feeds
+ * (especially TikTok and Instagram Reels) emit WINDOW_CONTENT_CHANGED
+ * without VIEW_SCROLLED when videos transition, so we need deltas on both
+ * event types for reliable swipe direction detection.
  */
 class ScrollAccessibilityService : AccessibilityService() {
 
@@ -49,22 +48,27 @@ class ScrollAccessibilityService : AccessibilityService() {
         "com.snapchat.android"
     )
 
+    // Only process these event types - skip everything else early to save CPU/battery
+    private val allowedEventTypes = setOf(
+        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+        AccessibilityEvent.TYPE_VIEW_SCROLLED,
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+    )
+
     private var lastForegroundPackage: String? = null
-    
-    // Track state per package to properly detect screen transitions
-    private val packageStates = mutableMapOf<String, String>()
     
     // Track last scroll deltas to detect direction changes across event types
     private val lastScrollDeltas = mutableMapOf<String, Pair<Int?, Int?>>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        
+        // Early exit: skip event types we don't use before any object allocation
+        if (event.eventType !in allowedEventTypes) return
+        
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in trackedPackages) return
 
-        // Update screen state using AppScreenStateTracker
-        val appState = AppScreenStateTracker.updateState(packageName, event)
-        
         val eventType = when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "window_state_changed"
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> "view_scrolled"
@@ -74,22 +78,15 @@ class ScrollAccessibilityService : AccessibilityService() {
 
         // Emit an explicit app_foreground the first time we see a tracked
         // package become active, so TrackingService.ts can open a session.
-        if (eventType == "window_state_changed") {
-            val prevState = packageStates[packageName]
-            if (prevState == null || prevState != appState) {
-                packageStates[packageName] = appState
-                
-                // Always emit app_foreground when entering a tracked app
-                // This ensures sessions are opened even if UI is not running
-                ScrollEventBus.publish(
-                    ScrollEventBus.Event(
-                        packageName = packageName,
-                        timestamp = System.currentTimeMillis(),
-                        eventType = "app_foreground",
-                        viewIdHint = appState // Pass state as hint for JS-side processing
-                    )
+        if (eventType == "window_state_changed" && lastForegroundPackage != packageName) {
+            lastForegroundPackage = packageName
+            ScrollEventBus.publish(
+                ScrollEventBus.Event(
+                    packageName = packageName,
+                    timestamp = System.currentTimeMillis(),
+                    eventType = "app_foreground"
                 )
-            }
+            )
         }
 
         val viewIdHint = try {
@@ -153,33 +150,15 @@ class ScrollAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        if (BuildConfig.DEBUG) Log.w("ScrollTracker", "Accessibility service interrupted by the system")
+        if (BuildConfig.DEBUG) {
+            Log.w("ScrollTracker", "Accessibility service interrupted by the system")
+        }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        if (BuildConfig.DEBUG) Log.i("ScrollTracker", "ScrollAccessibilityService connected")
-        
-        // Ensure the ForegroundService is running to keep our process alive
-        // This is critical for tracking to work when the UI is closed
-        try {
-            val fgIntent = Intent(this, TrackerForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(fgIntent)
-            } else {
-                startService(fgIntent)
-            }
-        } catch (e: Exception) {
-            Log.e("ScrollTracker", "Failed to start ForegroundService", e)
+        if (BuildConfig.DEBUG) {
+            Log.i("ScrollTracker", "ScrollAccessibilityService connected")
         }
-    }
-    
-    override fun onDestroy() {
-        super.onDestroy()
-        if (BuildConfig.DEBUG) Log.i("ScrollTracker", "ScrollAccessibilityService destroyed")
-        // Clear all states on destroy
-        AppScreenStateTracker.clearAllStates()
-        packageStates.clear()
-        lastScrollDeltas.clear()
     }
 }

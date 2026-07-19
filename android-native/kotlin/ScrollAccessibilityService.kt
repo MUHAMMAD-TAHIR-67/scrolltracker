@@ -1,5 +1,7 @@
-package com.scrolltracker
+﻿package com.scrolltracker
 
+
+import com.anonymous.scrolltracker.BuildConfig
 import android.accessibilityservice.AccessibilityService
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent

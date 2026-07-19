@@ -6,14 +6,12 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "extra": {
       "router": {},
       "eas": {
         "projectId": "423ada58-0c22-4344-9447-9ffff750156e"
       }
     },
-
     "plugins": [
       "expo-router",
       "expo-sqlite",
@@ -37,9 +35,9 @@
             "enableMinifyInReleaseBuilds": true
           }
         }
-      ]
+      ],
+      "./withBuildConfig.js"
     ],
-
     "android": {
       "package": "com.anonymous.scrolltracker",
       "adaptiveIcon": {
