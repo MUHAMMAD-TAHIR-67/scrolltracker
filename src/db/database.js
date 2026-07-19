@@ -3,66 +3,45 @@ import * as SQLite from "expo-sqlite";
 const DB_NAME = "scrolltracker.db";
 let dbInstance = null;
 
-// Transaction queue for serializing database writes
-let transactionQueue = Promise.resolve();
-const transactionLock = { isLocked: false };
+// Serializes all writes so they never run concurrently.
+// expo-sqlite v16 has its own connection pool; running overlapping
+// BEGIN...COMMIT blocks from JS still causes "cannot start a transaction
+// within a transaction" errors. This queue prevents that entirely.
+let writeQueue = Promise.resolve();
 
 /**
- * Helper: wrap a database operation in a transaction.
- * Automatically handles BEGIN/COMMIT/ROLLBACK with serialization.
- * Prevents race conditions by ensuring transactions run one at a time.
+ * Serialize a write operation so it never overlaps with another write.
  * @param {SQLite.SQLiteDatabase} db
  * @param {(db: SQLite.SQLiteDatabase) => Promise<any>} callback
  * @returns {Promise<any>}
  */
-export async function withTransaction(db, callback) {
-  if (!db) throw new Error("Database not available");
-  
-  // Queue this transaction to run after all previous ones
-  return new Promise((resolve, reject) => {
-    transactionQueue = transactionQueue.then(async () => {
-      try {
-        await db.execAsync("BEGIN IMMEDIATE;");
-        const result = await callback(db);
-        await db.execAsync("COMMIT;");
-        resolve(result);
-      } catch (error) {
-        try {
-          await db.execAsync("ROLLBACK;");
-        } catch (rollbackError) {
-          console.warn("[v0] Rollback failed:", rollbackError?.message);
-        }
-        reject(error);
-      }
+export function withTransaction(db, callback) {
+  if (!db) return Promise.reject(new Error("Database not available"));
+
+  const work = () =>
+    db.withTransactionAsync(async () => {
+      return await callback(db);
     });
-  });
+
+  // Chain on the queue so writes run one at a time
+  const next = writeQueue.then(work, work);
+  writeQueue = next.catch(() => {}); // prevent queue from dying on error
+  return next;
 }
 
 /**
- * Singleton async DB accessor. expo-sqlite (SDK 52+) exposes an async API
- * backed by a native connection pool - safe to call from multiple places
- * without manually managing open/close.
+ * Singleton DB accessor.
  * @returns {Promise<SQLite.SQLiteDatabase>}
  */
 export async function getDatabase() {
   if (dbInstance) return dbInstance;
   try {
-    console.log("[v0] Opening database...");
     const db = await SQLite.openDatabaseAsync(DB_NAME);
-    if (!db) {
-      console.error("[v0] Database initialization failed: SQLite.openDatabaseAsync returned null");
-      // Return null gracefully instead of throwing
-      return null;
-    }
-    console.log("[v0] Database opened successfully");
-    
+    if (!db) return null;
     dbInstance = db;
     await runMigrations(dbInstance);
-    console.log("[v0] Database migrations completed");
     return dbInstance;
   } catch (error) {
-    console.error("[v0] Database initialization failed:", error?.message || error);
-    // Clear instance to allow retry on next call
     dbInstance = null;
     return null;
   }
@@ -70,121 +49,68 @@ export async function getDatabase() {
 
 const SCHEMA_VERSION = 3;
 
-/** @param {SQLite.SQLiteDatabase} db */
 async function runMigrations(db) {
   if (!db) return;
-  
   try {
     await db.execAsync("PRAGMA foreign_keys = ON;");
-
     const row = await db.getFirstAsync("PRAGMA user_version;");
     const currentVersion = row?.user_version ?? 0;
 
     if (currentVersion < 1) {
-      // Metro/Hermes can't import .sql files directly, so the bootstrap DDL
-      // is inlined below (kept identical to src/db/schema.sql).
       await db.execAsync(BOOTSTRAP_SQL_V1);
-      await db.execAsync(`PRAGMA user_version = 1;`);
-      console.log("[v0] Database schema v1 created");
+      await db.execAsync("PRAGMA user_version = 1;");
     }
-
-    // Migration v1 -> v2: Add swipe detection columns to video_events
     if (currentVersion < 2) {
       await db.execAsync(MIGRATION_V2);
-      await db.execAsync(`PRAGMA user_version = 2;`);
-      console.log("[v0] Database schema v2 migrated (added swipe detection columns)");
+      await db.execAsync("PRAGMA user_version = 2;");
     }
-
-    // Migration v2 -> v3: Add unique constraints and indexes for data integrity
     if (currentVersion < 3) {
       await db.execAsync(MIGRATION_V3);
-      await db.execAsync(`PRAGMA user_version = 3;`);
-      console.log("[v0] Database schema v3 migrated (added constraints for data integrity)");
+      await db.execAsync("PRAGMA user_version = 3;");
     }
 
-    // Run recovery on startup
     await recoverOrphanedSessions(db);
   } catch (error) {
-    console.warn("[v0] Migration error (continuing anyway):", error?.message || error);
+    // Non-fatal — app still works, just with a partial schema
   }
 }
 
-/**
- * Recover orphaned sessions from crash/force-close.
- * Called on every app startup to ensure data integrity.
- * @param {SQLite.SQLiteDatabase} db
- */
 async function recoverOrphanedSessions(db) {
   if (!db) return;
   try {
-    // Use milliseconds (Date.now() format) for timestamp consistency
-    // Sessions table stores timestamps in milliseconds, matching native layer (System.currentTimeMillis())
     const now = Date.now();
-    const fiveMinutesAgoMs = now - (5 * 60 * 1000); // 5 minutes in milliseconds
-    
-    let orphanedResult;
-    try {
-      orphanedResult = await db.getFirstAsync(
-        `SELECT COUNT(*) as count FROM sessions WHERE ended_at IS NULL AND started_at < ?`,
-        [fiveMinutesAgoMs]
-      );
-    } catch (queryError) {
-      console.warn("[v0] Failed to query orphaned sessions:", queryError?.message);
-      return; // Skip recovery if query fails
-    }
-    
-    if (orphanedResult && typeof orphanedResult.count === 'number' && orphanedResult.count > 0) {
-      // Close orphaned sessions as terminated by crash
-      // Use runAsync (not execAsync) for parameterized query support
+    const cutoff = now - 5 * 60 * 1000; // 5 minutes ago
+    const result = await db.getFirstAsync(
+      "SELECT COUNT(*) as count FROM sessions WHERE ended_at IS NULL AND started_at < ?",
+      [cutoff]
+    );
+    if (result?.count > 0) {
       await db.runAsync(
-        `UPDATE sessions SET ended_at = ? WHERE ended_at IS NULL AND started_at < ?`,
-        [now, fiveMinutesAgoMs]
+        "UPDATE sessions SET ended_at = ? WHERE ended_at IS NULL AND started_at < ?",
+        [now, cutoff]
       );
-      console.log(`[v0] Recovered ${orphanedResult.count} orphaned sessions from previous crash`);
     }
-  } catch (error) {
-    console.warn("[v0] Recovery error (continuing anyway):", error?.message || error);
+  } catch (_) {
+    // Non-fatal
   }
 }
 
-// Migration from v1 to v2: Add swipe detection columns
-// This backfills existing rows with 'heuristic' as the detection source for backward compatibility
 const MIGRATION_V2 = `
 ALTER TABLE video_events ADD COLUMN swipe_direction TEXT;
 ALTER TABLE video_events ADD COLUMN app_screen_state TEXT;
 ALTER TABLE video_events ADD COLUMN detection_source TEXT DEFAULT 'heuristic';
-UPDATE video_events SET detection_source = 'heuristic' WHERE detection_source IS NULL;
 `;
 
-// Migration from v2 to v3: Add unique constraints and indexes for data integrity
-// Prevents duplicate sessions and improves query performance
-// These indexes are critical for performance with large datasets
 const MIGRATION_V3 = `
--- Index for faster session lookups by platform and day (dashboard queries)
 CREATE INDEX IF NOT EXISTS idx_sessions_platform_day_open ON sessions(platform_id, day_bucket, ended_at);
-
--- Index for faster video event queries by session and time (event processing)
 CREATE INDEX IF NOT EXISTS idx_video_events_session_time ON video_events(session_id, occurred_at);
-
--- Index for daily stats queries (analytics screen)
 CREATE INDEX IF NOT EXISTS idx_daily_stats_day ON daily_stats(day_bucket);
 CREATE INDEX IF NOT EXISTS idx_daily_stats_platform ON daily_stats(platform_id);
-
--- Compound index for analytics range queries (optimizes date range queries)
 CREATE INDEX IF NOT EXISTS idx_daily_stats_range ON daily_stats(day_bucket, platform_id);
-
--- Index for session aggregations (used in dashboard/analytics)
-CREATE INDEX IF NOT EXISTS idx_sessions_aggregation ON sessions(platform_id, day_bucket, ended_at, video_count);
-
--- Add unique constraint on streak_days (already has it as PRIMARY KEY, but ensure it)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_streak_days_unique ON streak_days(day_bucket);
-
--- ANALYZE indexes to help query planner
 ANALYZE;
 `;
 
-// Inlined copy of schema.sql (kept in sync manually, or generated at build
-// time via a small script - see scripts/generate-schema-const.js).
 const BOOTSTRAP_SQL_V1 = `
 CREATE TABLE IF NOT EXISTS platforms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
