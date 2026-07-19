@@ -61,6 +61,12 @@ function withManifestEntries(config) {
     application.service = application.service ?? [];
     application.receiver = application.receiver ?? [];
 
+    const removeByName = (entries, name) =>
+      entries.filter((entry) => entry?.$?.["android:name"] !== name);
+    application.service = removeByName(application.service, "com.scrolltracker.ScrollAccessibilityService");
+    application.service = removeByName(application.service, "com.scrolltracker.TrackerForegroundService");
+    application.receiver = removeByName(application.receiver, "com.scrolltracker.BootReceiver");
+
     // 1) Accessibility Service
     application.service.push({
       $: {
@@ -116,6 +122,7 @@ function withManifestEntries(config) {
       "com.instagram.android",
       "com.google.android.youtube",
       "com.zhiliaoapp.musically",
+      "com.ss.android.ugc.trill",
       "com.snapchat.android",
     ];
     manifest.manifest.queries[0].package = trackedPackages.map((name) => ({

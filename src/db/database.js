@@ -47,7 +47,7 @@ export async function getDatabase() {
   }
 }
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 async function runMigrations(db) {
   if (!db) return;
@@ -67,6 +67,10 @@ async function runMigrations(db) {
     if (currentVersion < 3) {
       await db.execAsync(MIGRATION_V3);
       await db.execAsync("PRAGMA user_version = 3;");
+    }
+    if (currentVersion < 4) {
+      await db.execAsync(MIGRATION_V4);
+      await db.execAsync("PRAGMA user_version = 4;");
     }
 
     await recoverOrphanedSessions(db);
@@ -99,6 +103,11 @@ const MIGRATION_V2 = `
 ALTER TABLE video_events ADD COLUMN swipe_direction TEXT;
 ALTER TABLE video_events ADD COLUMN app_screen_state TEXT;
 ALTER TABLE video_events ADD COLUMN detection_source TEXT DEFAULT 'heuristic';
+`;
+
+const MIGRATION_V4 = `
+ALTER TABLE video_events ADD COLUMN native_event_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_video_events_native_event_id ON video_events(native_event_id);
 `;
 
 const MIGRATION_V3 = `
@@ -136,10 +145,7 @@ CREATE TABLE IF NOT EXISTS video_events (
   session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   occurred_at INTEGER NOT NULL,
   confidence REAL NOT NULL DEFAULT 1.0,
-  detection TEXT NOT NULL,
-  swipe_direction TEXT,
-  app_screen_state TEXT,
-  detection_source TEXT DEFAULT 'heuristic'
+  detection TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_session ON video_events(session_id);
 CREATE TABLE IF NOT EXISTS daily_stats (

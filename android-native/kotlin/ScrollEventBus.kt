@@ -1,130 +1,100 @@
 package com.scrolltracker
 
 import android.content.Context
-import android.content.SharedPreferences
-import java.util.ArrayDeque
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
-/**
- * ScrollAccessibilityService runs on the system's accessibility process and
- * has no guaranteed reference to a live React Native instance (JS can be
- * killed by the OS while the service keeps running). This singleton is the
- * decoupling point:
- *
- *  - The AccessibilityService calls `publish()` for every qualifying event.
- *  - ScrollTrackerModule registers a listener while the RN instance is alive
- *    and gets events pushed immediately (near-real-time).
- *  - If no listener is registered (JS backgrounded/killed), events accumulate
- *    in a bounded ring buffer and are handed back via `drainPending()` the
- *    next time JS calls `drainPendingEvents()` (see TrackingService.ts).
- *
- * The buffer is intentionally small and lightweight: only timestamps,
- * package names, event type, optional resource-id/content-desc hints, and
- * (for typeViewScrolled) raw scroll-delta pixel offsets - never any rendered
- * text or video content.
- */
+/** Crash-safe transport for canonical native events. */
 object ScrollEventBus {
     data class Event(
+        val id: String = UUID.randomUUID().toString(),
         val packageName: String,
         val timestamp: Long,
-        val eventType: String, // matches NativeScrollEvent["eventType"] on the JS side
-        val viewIdHint: String? = null,
-        val contentDescHint: String? = null,
-        // Raw AccessibilityEvent#getScrollDeltaX/Y (API 28+ only, null below that or
-        // when the source view doesn't report deltas). JS derives swipe direction from
-        // these rather than native guessing UP/DOWN, so the sign/threshold logic can be
-        // tuned per platform without a native rebuild - see SwipeDirection.js.
-        val scrollDeltaX: Int? = null,
-        val scrollDeltaY: Int? = null
+        val eventType: String,
+        val direction: String? = null,
+        val appScreen: String? = null
     )
 
-    // Increased buffer size; events also persist to disk periodically
-    private const val MAX_BUFFER = 2000
-    
-    // Persist event counts to SharedPreferences every N events
-    private const val PERSIST_INTERVAL = 100
-
-    private val buffer = ArrayDeque<Event>()
+    private const val PREFS = "scrolltracker_native_events"
+    private const val EVENTS = "events"
+    private const val MAX_EVENTS = 5000
     private val listeners = CopyOnWriteArrayList<(Event) -> Unit>()
-    
-    // Native-side video event counters per package (survive JS death)
-    private var pendingEventCount = 0
     private lateinit var appContext: Context
-    
+
+    @Synchronized
     fun init(context: Context) {
         appContext = context.applicationContext
-    }
-    
-    /**
-     * Persist accumulated video counts to disk. Called periodically and on process death.
-     * Counts are keyed by package name + day bucket to enable deduplication on merge.
-     */
-    @Synchronized
-    fun persistCounts() {
-        if (!::appContext.isInitialized) return
-        try {
-            val prefs: SharedPreferences = appContext.getSharedPreferences("scrolltracker_native_counts", Context.MODE_PRIVATE)
-            // Current implementation just flushes; actual count merging happens in drainPending
-            prefs.edit().putLong("last_persist_time", System.currentTimeMillis()).apply()
-        } catch (_: Exception) {
-            // Fail silently - counts will reconcile on next persist
-        }
-    }
-    
-    /**
-     * Get natively-tracked session data for reconciliation with JS/SQLite.
-     * Returns map of packageName -> {videoCount, lastEventTime}
-     */
-    @Synchronized
-    fun getTrackedSessions(): Map<String, Map<String, Any>> {
-        if (!::appContext.isInitialized) return emptyMap()
-        val result = mutableMapOf<String, Map<String, Any>>()
-        try {
-            val prefs: SharedPreferences = appContext.getSharedPreferences("scrolltracker_native_counts", Context.MODE_PRIVATE)
-            // Read stored counts per package (stored as "pkgname_count", "pkgname_lasttime")
-            // For now, return empty - full implementation requires per-package storage
-        } catch (_: Exception) {}
-        return result
     }
 
     @Synchronized
     fun publish(event: Event) {
-        val activeListeners = listeners.toList()
-        if (activeListeners.isEmpty()) {
-            if (buffer.size >= MAX_BUFFER) buffer.poll()
-            buffer.add(event)
-            pendingEventCount++
-            // Periodically persist to disk
-            if (pendingEventCount % PERSIST_INTERVAL == 0) {
-                persistCounts()
-            }
-        } else {
-            activeListeners.forEach { it(event) }
+        if (event.eventType == "video_swipe") persist(event)
+        listeners.toList().forEach { it(event) }
+    }
+
+    private fun persist(event: Event) {
+        if (!::appContext.isInitialized) return
+        val pending = readArray()
+        if (pending.length() >= MAX_EVENTS) pending.remove(0)
+        pending.put(toJson(event))
+        // commit is intentional: a confirmed swipe must be durable before delivery.
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(EVENTS, pending.toString()).commit()
+    }
+
+    @Synchronized
+    fun pending(): List<Event> {
+        if (!::appContext.isInitialized) return emptyList()
+        val array = readArray()
+        return (0 until array.length()).mapNotNull { index -> fromJson(array.optJSONObject(index)) }
+    }
+
+    @Synchronized
+    fun acknowledge(ids: Set<String>) {
+        if (!::appContext.isInitialized || ids.isEmpty()) return
+        val current = readArray()
+        val remaining = JSONArray()
+        for (index in 0 until current.length()) {
+            val item = current.optJSONObject(index) ?: continue
+            if (item.optString("id") !in ids) remaining.put(item)
         }
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(EVENTS, remaining.toString()).commit()
     }
 
-    fun addListener(listener: (Event) -> Unit) {
-        listeners.add(listener)
+    fun addListener(listener: (Event) -> Unit) = listeners.add(listener)
+    fun removeListener(listener: (Event) -> Unit) = listeners.remove(listener)
+
+    private fun readArray(): JSONArray = try {
+        val raw = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(EVENTS, "[]")
+        JSONArray(raw ?: "[]")
+    } catch (_: Exception) {
+        JSONArray()
     }
 
-    fun removeListener(listener: (Event) -> Unit) {
-        listeners.remove(listener)
+    private fun toJson(event: Event) = JSONObject().apply {
+        put("id", event.id)
+        put("packageName", event.packageName)
+        put("timestamp", event.timestamp)
+        put("eventType", event.eventType)
+        event.direction?.let { put("direction", it) }
+        event.appScreen?.let { put("appScreen", it) }
     }
 
-    @Synchronized
-    fun drainPending(): List<Event> {
-        val drained = buffer.toList()
-        buffer.clear()
-        return drained
-    }
-    
-    /**
-     * Reset native state after successful merge to SQLite.
-     * Called by JS after draining and persisting events.
-     */
-    @Synchronized
-    fun resetAfterMerge() {
-        pendingEventCount = 0
-        persistCounts()
+    private fun fromJson(value: JSONObject?): Event? {
+        if (value == null) return null
+        val id = value.optString("id")
+        val packageName = value.optString("packageName")
+        if (id.isBlank() || packageName.isBlank()) return null
+        return Event(
+            id = id,
+            packageName = packageName,
+            timestamp = value.optLong("timestamp"),
+            eventType = value.optString("eventType"),
+            direction = value.optString("direction").takeIf { it.isNotBlank() },
+            appScreen = value.optString("appScreen").takeIf { it.isNotBlank() }
+        )
     }
 }

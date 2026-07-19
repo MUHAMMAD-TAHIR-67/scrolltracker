@@ -14,6 +14,8 @@ const noopAsync = () => Promise.resolve(false);
 const STUB = {
   openAccessibilitySettings: noop,
   openUsageAccessSettings: noop,
+  openOverlaySettings: noop,
+  isOverlayPermissionGranted: noopAsync,
   isAccessibilityServiceEnabled: noopAsync,
   isUsageAccessGranted: noopAsync,
   requestIgnoreBatteryOptimizations: noopAsync,
@@ -24,7 +26,7 @@ const STUB = {
   queryUsageStats: () => Promise.resolve([]),
   drainPendingEvents: () => Promise.resolve([]),
   syncNativePrefs: noopAsync,
-  resetNativeTracking: noopAsync,
+  acknowledgeEvents: noopAsync,
 };
 
 export const ScrollTrackerNative =
