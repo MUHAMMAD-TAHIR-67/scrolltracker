@@ -25,9 +25,12 @@ const pendingEvents = [];
 
 /**
  * Process a native scroll event that may contain swipe information.
+ * Only vertical swipes (UP/DOWN) count. Horizontal swipes are ignored.
  * Returns { videoDelta: 0|1, newEvent?: {...}, sessionEnded?: {...} }
  */
 export function processSwipeEvent(event) {
+  if (!event) return { videoDelta: 0 };
+  
   // Queue if already processing to maintain order
   if (isProcessing) {
     pendingEvents.push(event);
@@ -84,8 +87,13 @@ function _handleSwipeEvent(event) {
 
   if (!state) return { videoDelta: 0 };
 
-  // Only count actual swipes
-  if (!event.swipeDirection || event.swipeDirection === "NONE") {
+  // Only count VERTICAL swipes (UP or DOWN) - ignore horizontal (LEFT/RIGHT)
+  if (!event.swipeDirection || event.swipeDirection === "NONE" || event.swipeDirection === "LEFT" || event.swipeDirection === "RIGHT") {
+    return { videoDelta: 0 };
+  }
+
+  // Must be UP or DOWN for valid video navigation
+  if (event.swipeDirection !== "UP" && event.swipeDirection !== "DOWN") {
     return { videoDelta: 0 };
   }
 
@@ -99,6 +107,11 @@ function _handleSwipeEvent(event) {
     return { videoDelta: 0 };
   }
 
+  // Prevent duplicate swipes within 300ms (prevents fast repeated swipes from counting twice)
+  if (state.lastSwipeAt && (event.timestamp - state.lastSwipeAt) < 300) {
+    return { videoDelta: 0 };
+  }
+
   // We have a valid swipe - count it!
   state.videoCount += 1;
   state.lastSwipeAt = event.timestamp;
@@ -107,11 +120,12 @@ function _handleSwipeEvent(event) {
     occurredAt: event.timestamp,
     direction: event.swipeDirection,
     appScreen: event.appScreen,
-    confidence: 0.95, // High confidence: we detected an actual swipe
+    confidence: 0.98, // Very high confidence: direct swipe detection
     detection: "swipe_direct",
   };
   state.events.push(newEvent);
 
+  console.log("[v0] Valid vertical swipe detected:", event.swipeDirection, "- Total videos:", state.videoCount);
   return { videoDelta: 1, newEvent };
 }
 

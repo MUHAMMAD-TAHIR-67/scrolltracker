@@ -3,28 +3,39 @@ import * as SQLite from "expo-sqlite";
 const DB_NAME = "scrolltracker.db";
 let dbInstance = null;
 
+// Transaction queue for serializing database writes
+let transactionQueue = Promise.resolve();
+const transactionLock = { isLocked: false };
+
 /**
  * Helper: wrap a database operation in a transaction.
- * Automatically handles BEGIN/COMMIT/ROLLBACK.
+ * Automatically handles BEGIN/COMMIT/ROLLBACK with serialization.
+ * Prevents race conditions by ensuring transactions run one at a time.
  * @param {SQLite.SQLiteDatabase} db
  * @param {(db: SQLite.SQLiteDatabase) => Promise<any>} callback
  * @returns {Promise<any>}
  */
 export async function withTransaction(db, callback) {
   if (!db) throw new Error("Database not available");
-  try {
-    await db.execAsync("BEGIN TRANSACTION;");
-    const result = await callback(db);
-    await db.execAsync("COMMIT;");
-    return result;
-  } catch (error) {
-    try {
-      await db.execAsync("ROLLBACK;");
-    } catch (rollbackError) {
-      console.warn("[v0] Rollback failed:", rollbackError?.message);
-    }
-    throw error;
-  }
+  
+  // Queue this transaction to run after all previous ones
+  return new Promise((resolve, reject) => {
+    transactionQueue = transactionQueue.then(async () => {
+      try {
+        await db.execAsync("BEGIN IMMEDIATE;");
+        const result = await callback(db);
+        await db.execAsync("COMMIT;");
+        resolve(result);
+      } catch (error) {
+        try {
+          await db.execAsync("ROLLBACK;");
+        } catch (rollbackError) {
+          console.warn("[v0] Rollback failed:", rollbackError?.message);
+        }
+        reject(error);
+      }
+    });
+  });
 }
 
 /**

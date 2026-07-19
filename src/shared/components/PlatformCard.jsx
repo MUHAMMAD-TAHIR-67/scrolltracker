@@ -19,7 +19,7 @@ export function PlatformCard({ platform, videoCount, durationMs, goalLimit }) {
 
   return (
     <View 
-      className="bg-surface rounded-xl p-4 mb-3 border border-gray-700"
+      className="bg-surface rounded-xl p-4 mb-3 border-2 border-primary"
       accessibilityRole="summary"
       accessibilityLabel={`${platform.displayName}: ${videoCount} videos watched today`}
     >
@@ -30,20 +30,20 @@ export function PlatformCard({ platform, videoCount, durationMs, goalLimit }) {
             style={{ backgroundColor: platform.colorHex }}
             accessibilityHidden={true}
           />
-          <Text className="text-text text-base font-semibold">
+          <Text className="text-text text-base font-bold">
             {platform.displayName}
           </Text>
         </View>
         <View className="bg-surfaceLight rounded-full px-3 py-1 flex-row items-center gap-1.5">
-          <MaterialCommunityIcons name="clock-outline" size={14} color="#94A3B8" />
-          <Text className="text-textMuted text-xs font-medium">
+          <MaterialCommunityIcons name="clock-outline" size={14} color="#059669" />
+          <Text className="text-text text-xs font-semibold">
             {formatDuration(durationMs)}
           </Text>
         </View>
       </View>
 
       <View className="flex-row items-baseline gap-2 mb-3">
-        <Text className="text-text text-3xl font-bold">{videoCount}</Text>
+        <Text className="text-primary text-3xl font-bold">{videoCount}</Text>
         <Text className="text-textMuted text-sm">videos today</Text>
       </View>
 
