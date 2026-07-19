@@ -123,15 +123,13 @@ class TrackingServiceImpl {
   async #handleEvent(rawEvent) {
     // Safety check: ensure rawEvent exists
     if (!rawEvent || typeof rawEvent !== 'object') {
-      console.warn("[v0] Invalid event received:", typeof rawEvent);
       return;
     }
 
     // Normalize alternate package IDs (e.g. TikTok's com.ss.android.ugc.trill)
-    // to the canonical one stored in the platforms table.
     const event = { ...rawEvent, packageName: canonicalPackageName(rawEvent.packageName) };
 
-    // Safety check: ensure service is still active (not stopped during shutdown)
+    // Safety check: ensure service is still active
     if (this.#unsubscribe === null && event.eventType !== "app_background") {
       return;
     }
@@ -145,19 +143,26 @@ class TrackingServiceImpl {
         const now = event.timestamp;
         const lastTime = this.#lastForegroundTime.get(event.packageName) || 0;
         if (now - lastTime < FOREGROUND_DEBOUNCE_MS) {
-          return; // Skip duplicate foreground event
+          return;
         }
         this.#lastForegroundTime.set(event.packageName, now);
         
         if (!this.#openSessionIds.has(event.packageName)) {
-          const sessionId = await trackingRepository?.openSession?.(platform.id, event.timestamp, "accessibility");
-          if (sessionId) {
-            this.#openSessionIds.set(event.packageName, sessionId);
+          try {
+            const sessionId = await trackingRepository?.openSession?.(platform.id, event.timestamp, "accessibility");
+            if (sessionId && sessionId > 0) {
+              this.#openSessionIds.set(event.packageName, sessionId);
+              console.log("[v0] New session opened:", sessionId, "for", platform.displayName);
 
-            const focusState = useFocusStore?.getState?.();
-            if (focusState?.isActive) {
-              notifyFocusModeBreach(platform.displayName).catch(() => {});
+              const focusState = useFocusStore?.getState?.();
+              if (focusState?.isActive) {
+                notifyFocusModeBreach(platform.displayName).catch(() => {});
+              }
+            } else {
+              console.warn("[v0] Failed to open session for", platform.displayName);
             }
+          } catch (err) {
+            console.error("[v0] Error opening session:", err?.message);
           }
         }
       }
@@ -165,21 +170,29 @@ class TrackingServiceImpl {
       const result = this.#estimator?.ingest?.(event);
       if (!result) return;
 
-      if (result.newEvent) {
+      // Only process valid video events
+      if (result.newEvent && result.videoDelta > 0) {
         const sessionId = this.#openSessionIds.get(event.packageName);
-        if (sessionId) {
-          await trackingRepository?.appendVideoEvent?.(
-            sessionId,
-            result.newEvent.occurredAt,
-            result.newEvent.confidence,
-            result.newEvent.detection,
-            {
-              swipeDirection: result.newEvent.direction || null,
-              appScreenState: result.newEvent.appScreen || null,
-              detectionSource: result.newEvent.detection === 'swipe_direct' ? 'swipe' : 'heuristic'
+        if (sessionId && sessionId > 0) {
+          try {
+            const eventId = await trackingRepository?.appendVideoEvent?.(
+              sessionId,
+              result.newEvent.occurredAt,
+              result.newEvent.confidence,
+              result.newEvent.detection,
+              {
+                swipeDirection: result.newEvent.direction || null,
+                appScreenState: result.newEvent.appScreen || null,
+                detectionSource: result.newEvent.detection === 'swipe_direct' ? 'swipe' : 'heuristic'
+              }
+            );
+            
+            if (eventId && eventId > 0) {
+              useTrackingStore?.getState?.()?.incrementLiveCount?.(platform.key);
             }
-          );
-          useTrackingStore?.getState?.()?.incrementLiveCount?.(platform.key);
+          } catch (err) {
+            console.error("[v0] Error appending video event:", err?.message);
+          }
         }
       }
       

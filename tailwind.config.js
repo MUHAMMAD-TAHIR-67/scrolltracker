@@ -5,21 +5,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Simple color palette
-        primary: "#6366F1",
-        primaryLight: "#818CF8",
-        primaryDark: "#4F46E5",
+        // Light green and white theme
+        primary: "#10B981",
+        primaryLight: "#34D399",
+        primaryDark: "#059669",
         
-        background: "#0F172A",
-        surface: "#1E293B",
-        surfaceLight: "#334155",
+        background: "#FFFFFF",
+        surface: "#F0FDF4",
+        surfaceLight: "#DCFCE7",
         
-        text: "#F1F5F9",
-        textMuted: "#94A3B8",
+        text: "#065F46",
+        textMuted: "#6B7280",
         
-        success: "#22C55E",
+        success: "#10B981",
         warning: "#F59E0B",
-        error: "#EF4444",
+        error: "#DC2626",
         
         // Platform colors
         instagram: "#E1306C",

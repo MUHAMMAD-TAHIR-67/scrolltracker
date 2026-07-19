@@ -76,14 +76,14 @@ export default function DashboardScreen() {
         {/* Status Bar */}
         <View className="flex-row gap-2 mb-6 flex-wrap">
           <StatusChip 
-            label={isTrackingActive ? "Tracking Active" : "Tracking Inactive"} 
+            label={isTrackingActive ? "Tracking Active" : "Not Active"} 
             active={isTrackingActive}
-            icon={isTrackingActive ? "check-circle" : "pause-circle"}
+            icon={isTrackingActive ? "check-circle" : "alert-circle"}
           />
           <StatusChip 
-            label={permissionsState.accessibilityGranted ? "Accessibility On" : "Accessibility Off"} 
+            label={permissionsState.accessibilityGranted ? "Permitted" : "No Access"} 
             active={permissionsState.accessibilityGranted}
-            icon={permissionsState.accessibilityGranted ? "eye-outline" : "eye-off-outline"}
+            icon={permissionsState.accessibilityGranted ? "check-circle-outline" : "close-circle-outline"}
           />
           {streak > 0 && (
             <StatusChip 
