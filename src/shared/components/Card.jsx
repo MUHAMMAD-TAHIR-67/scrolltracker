@@ -2,19 +2,13 @@ import { View, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 /**
- * Modern Material 3 Card component with consistent styling
- * @param {Object} props
- * @param {React.ReactNode} props.children - Child components
- * @param {string} [props.title] - Optional card title
- * @param {string} [props.icon] - Optional icon name
- * @param {string} [props.iconColor] - Icon color (default: primary)
- * @param {boolean} [props.noPadding] - Remove default padding
+ * Simple Card component with clean styling
  */
-export function Card({ children, title, icon, iconColor = "#D0BCFF", noPadding = false }) {
+export function Card({ children, title, icon, iconColor = "#6366F1", noPadding = false }) {
   return (
-    <View className="bg-surfaceContainerHigh rounded-3xl mb-6 border border-outlineVariant">
+    <View className="bg-surface rounded-xl mb-5 border border-gray-700">
       {(title || icon) && (
-        <View className="flex-row items-center px-6 pt-5 pb-3">
+        <View className="flex-row items-center px-5 pt-4 pb-3">
           {icon && (
             <MaterialCommunityIcons 
               name={icon} 
@@ -24,13 +18,13 @@ export function Card({ children, title, icon, iconColor = "#D0BCFF", noPadding =
             />
           )}
           {title && (
-            <Text className="text-onSurfaceVariant text-title-small font-medium">
+            <Text className="text-text text-lg font-semibold">
               {title}
             </Text>
           )}
         </View>
       )}
-      <View className={noPadding ? "" : "px-6 pb-5"}>
+      <View className={noPadding ? "" : "px-5 pb-4"}>
         {children}
       </View>
     </View>

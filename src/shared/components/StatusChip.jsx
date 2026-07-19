@@ -2,31 +2,27 @@ import { View, Text } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 /**
- * Modern Material 3 Status Chip component
- * @param {Object} props
- * @param {string} props.label - Chip label text
- * @param {boolean} [props.active] - Active state (default: false)
- * @param {string} [props.icon] - Optional icon name
+ * Simple Status Chip component
  */
 export function StatusChip({ label, active = false, icon }) {
   return (
     <View 
-      className={`flex-row items-center px-4 py-2 rounded-full ${
-        active ? "bg-primaryContainer" : "bg-surfaceContainerHigh"
+      className={`flex-row items-center px-3 py-1.5 rounded-full ${
+        active ? "bg-primary" : "bg-surfaceLight"
       }`}
     >
       {icon && (
         <MaterialCommunityIcons 
           name={icon} 
-          size={16} 
-          color={active ? "#381E72" : "#CAC4D0"} 
-          style={{ marginRight: 6 }} 
+          size={14} 
+          color={active ? "#FFFFFF" : "#94A3B8"} 
+          style={{ marginRight: 4 }} 
         />
       )}
       <Text 
         className={`${
-          active ? "text-onPrimaryContainer" : "text-onSurfaceVariant"
-        } text-label-large font-medium`}
+          active ? "text-white" : "text-textMuted"
+        } text-xs font-medium`}
       >
         {label}
       </Text>

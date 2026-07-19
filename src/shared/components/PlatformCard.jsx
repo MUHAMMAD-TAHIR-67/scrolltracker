@@ -11,11 +11,7 @@ function formatDuration(ms) {
 }
 
 /**
- * @param {Object} props
- * @param {import("@/features/tracking/types").Platform} props.platform
- * @param {number} props.videoCount
- * @param {number} props.durationMs
- * @param {number} [props.goalLimit] video-count based limit, if any
+ * Simple Platform Card component
  */
 export function PlatformCard({ platform, videoCount, durationMs, goalLimit }) {
   const progress = goalLimit ? videoCount / goalLimit : 0;
@@ -23,43 +19,43 @@ export function PlatformCard({ platform, videoCount, durationMs, goalLimit }) {
 
   return (
     <View 
-      className="bg-surfaceContainer rounded-2xl p-5 mb-3 border border-outlineVariant"
+      className="bg-surface rounded-xl p-4 mb-3 border border-gray-700"
       accessibilityRole="summary"
       accessibilityLabel={`${platform.displayName}: ${videoCount} videos watched today`}
     >
-      <View className="flex-row justify-between items-center mb-4">
-        <View className="flex-row items-center gap-3">
+      <View className="flex-row justify-between items-center mb-3">
+        <View className="flex-row items-center gap-2">
           <View 
-            className="w-4 h-4 rounded-full" 
+            className="w-3 h-3 rounded-full" 
             style={{ backgroundColor: platform.colorHex }}
             accessibilityHidden={true}
           />
-          <Text className="text-onSurface text-title-medium font-medium">
+          <Text className="text-text text-base font-semibold">
             {platform.displayName}
           </Text>
         </View>
-        <View className="bg-surfaceContainerHigh rounded-full px-3 py-1.5 flex-row items-center gap-1.5">
-          <MaterialCommunityIcons name="clock-outline" size={14} color="#CAC4D0" />
-          <Text className="text-onSurfaceVariant text-label-small font-medium">
+        <View className="bg-surfaceLight rounded-full px-3 py-1 flex-row items-center gap-1.5">
+          <MaterialCommunityIcons name="clock-outline" size={14} color="#94A3B8" />
+          <Text className="text-textMuted text-xs font-medium">
             {formatDuration(durationMs)}
           </Text>
         </View>
       </View>
 
-      <View className="flex-row items-baseline gap-2 mb-4">
-        <Text className="text-onSurface text-display-small font-light">{videoCount}</Text>
-        <Text className="text-onSurfaceVariant text-body-medium">videos today</Text>
+      <View className="flex-row items-baseline gap-2 mb-3">
+        <Text className="text-text text-3xl font-bold">{videoCount}</Text>
+        <Text className="text-textMuted text-sm">videos today</Text>
       </View>
 
       {goalLimit ? (
         <>
-          <ProgressBar progress={progress} colorHex={isOverLimit ? "#F2B8B5" : platform.colorHex} />
+          <ProgressBar progress={progress} colorHex={isOverLimit ? "#EF4444" : platform.colorHex} />
           <View className="flex-row justify-between mt-2">
-            <Text className="text-onSurfaceVariant text-label-small">
+            <Text className="text-textMuted text-xs">
               {videoCount} / {goalLimit} daily limit
             </Text>
             <Text 
-              className={`text-label-large font-medium ${
+              className={`text-xs font-semibold ${
                 isOverLimit ? "text-error" : "text-success"
               }`}
             >
