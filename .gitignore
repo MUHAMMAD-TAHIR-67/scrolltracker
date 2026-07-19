@@ -1,31 +1,80 @@
 ```
-# Documentation and reports
-AUDIT_FINDINGS_SUMMARY.md
-AUDIT_REPORT.md
-BUG_REPORT_PHASE1.md
-BUILD_FIX_CHANGELOG.md
-BUILD_GUIDE.md
-BUILD_TEST_REPORT.md
-CODEBASE_FIXES_REPORT.md
-COMPLETE_AUDIT_REPORT.md
-COMPLETE_IMPLEMENTATION_SUMMARY.md
-COMPREHENSIVE_TEST_REPORT.md
-DEPLOYMENT_READY.md
-EXECUTIVE_SUMMARY.md
-FINAL_CHECKLIST.md
-FINAL_DEPLOYMENT_SUMMARY.md
-FIX_SUMMARY.md
-GITHUB_VERIFICATION.md
-IMPLEMENTATION_COMPLETE.md
-IMPLEMENTATION_NOTES.md
-IMPLEMENTATION_PLAN.md
-PHASE3_MATERIAL_DESIGN3_GUIDE.md
-PHASE4_PERFORMANCE_OPTIMIZATION.md
-QUICK_FIX_REFERENCE.md
-README.md
-README_IMPLEMENTATION.md
-REFACTOR_SUMMARY.md
-TESTING_COMPLETE_SUMMARY.md
-VALIDATION_REPORT.md
-VERIFICATION_REPORT.md
+# Compiled and build artifacts
+*.class
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+target/
+.gradle/
+
+# Android build artifacts
+*.apk
+*.aar
+*.dex
+app/build/
+*/build/
+.gradle/
+local.properties
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```

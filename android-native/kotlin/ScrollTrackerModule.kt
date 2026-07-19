@@ -16,12 +16,14 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "ScrollTrackerModule"
 
-    private val busListener: (ScrollEventBus.Event) -> Unit = { event ->
-        emitToJs(event)
+    init {
+        // Initialize ScrollEventBus with application context for persistence
+        ScrollEventBus.init(reactContext.applicationContext)
+        ScrollEventBus.addListener(busListener)
     }
 
-    init {
-        ScrollEventBus.addListener(busListener)
+    private val busListener: (ScrollEventBus.Event) -> Unit = { event ->
+        emitToJs(event)
     }
 
     private fun emitToJs(event: ScrollEventBus.Event) {
@@ -223,6 +225,46 @@ class ScrollTrackerModule(reactContext: ReactApplicationContext) :
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("ERR_DRAIN_EVENTS", e)
+        }
+    }
+    
+    /**
+     * Get natively-persisted session counts for reconciliation with SQLite.
+     * Returns data needed to merge without duplicates after JS restart.
+     */
+    @ReactMethod
+    fun getTrackedSessions(promise: Promise) {
+        try {
+            val sessions = ScrollEventBus.getTrackedSessions()
+            val result = Arguments.createMap()
+            sessions.forEach { (pkg, data) ->
+                val pkgMap = Arguments.createMap()
+                data.forEach { (key, value) ->
+                    when (value) {
+                        is Int -> pkgMap.putInt(key, value)
+                        is Long -> pkgMap.putDouble(key, value.toDouble())
+                        is String -> pkgMap.putString(key, value)
+                    }
+                }
+                result.putMap(pkg, pkgMap)
+            }
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERR_TRACKED_SESSIONS", e)
+        }
+    }
+    
+    /**
+     * Reset native tracking state after successful merge to SQLite.
+     * Call this after draining and persisting events to avoid double-counting.
+     */
+    @ReactMethod
+    fun resetNativeTracking(promise: Promise) {
+        try {
+            ScrollEventBus.resetAfterMerge()
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("ERR_RESET_NATIVE", e)
         }
     }
 
