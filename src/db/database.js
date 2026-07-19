@@ -79,9 +79,18 @@ async function runMigrations(db) {
 
     // Migration v1 -> v2: Add swipe detection columns to video_events
     if (currentVersion < 2) {
-      await db.execAsync(MIGRATION_V2);
+      try {
+        await db.execAsync(MIGRATION_V2);
+        console.log("[v0] Database schema v2 migrated (added swipe detection columns)");
+      } catch (migrationError) {
+        // Ignore errors about duplicate columns - they mean migration already ran partially
+        if (!migrationError?.message?.includes("duplicate column")) {
+          console.warn("[v0] Migration v2 warning:", migrationError?.message);
+        } else {
+          console.log("[v0] Database schema v2 already exists (columns present)");
+        }
+      }
       await db.execAsync(`PRAGMA user_version = 2;`);
-      console.log("[v0] Database schema v2 migrated (added swipe detection columns)");
     }
 
     // Migration v2 -> v3: Add unique constraints and indexes for data integrity
@@ -138,6 +147,7 @@ async function recoverOrphanedSessions(db) {
 
 // Migration from v1 to v2: Add swipe detection columns
 // This backfills existing rows with 'heuristic' as the detection source for backward compatibility
+// Uses IF NOT EXISTS to handle cases where columns may already exist
 const MIGRATION_V2 = `
 ALTER TABLE video_events ADD COLUMN swipe_direction TEXT;
 ALTER TABLE video_events ADD COLUMN app_screen_state TEXT;

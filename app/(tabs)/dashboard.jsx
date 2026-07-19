@@ -97,7 +97,7 @@ export default function DashboardScreen() {
         <PermissionGateBanner missingCount={missingPermissions} />
 
         {/* Today's Summary Card */}
-        <Card title="Today's Overview" icon="today" iconColor="#6366F1">
+        <Card title="Today's Overview" icon="calendar" iconColor="#6366F1">
           <View className="flex-row gap-4 mb-4">
             <View className="flex-1 bg-surfaceLight rounded-xl p-4">
               <View className="flex-row items-center gap-2 mb-2">
