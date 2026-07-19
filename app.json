@@ -19,7 +19,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#6366F1"
+          "color": "#10B981"
         }
       ],
       "./plugins/withScrollTrackerAccessibility.js",
@@ -40,6 +40,14 @@
     ],
     "android": {
       "package": "com.anonymous.scrolltracker",
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+        "android.permission.PACKAGE_USAGE_STATS",
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"

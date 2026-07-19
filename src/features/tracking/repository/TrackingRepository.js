@@ -49,51 +49,36 @@ export class TrackingRepository {
     }
   }
 
-  /**
-   * Record one swipe-based video event.
-   * Deduplicated within a 500 ms window to prevent double-counting.
-   * Atomically increments video_count on the parent session.
-   * Returns the event id, or -1 on failure.
-   */
-  async appendVideoEvent(sessionId, occurredAt, confidence, detection, options = {}) {
+  /** Atomically records one durable native swipe and increments its session once. */
+  async appendVideoEvent(sessionId, nativeEventId, occurredAt, options = {}) {
     const db = await getDatabase();
-    if (!db || !sessionId || sessionId <= 0) return -1;
+    if (!db || !sessionId || sessionId <= 0 || !nativeEventId) {
+      return { committed: false, inserted: false };
+    }
 
-    const {
-      swipeDirection = null,
-      appScreenState = null,
-      detectionSource = "swipe",
-    } = options;
-
+    const { swipeDirection = null, appScreenState = null } = options;
     try {
       return await withTransaction(db, async (txDb) => {
-        // Deduplication: reject if another event was counted in the last 500 ms
-        const recent = await txDb.getFirstAsync(
-          "SELECT id FROM video_events WHERE session_id = ? AND occurred_at > ? LIMIT 1;",
-          [sessionId, occurredAt - 500]
+        const existing = await txDb.getFirstAsync(
+          "SELECT id FROM video_events WHERE native_event_id = ? LIMIT 1;",
+          [nativeEventId]
         );
-        if (recent?.id > 0) return recent.id;
+        if (existing?.id > 0) return { committed: true, inserted: false };
 
         const result = await txDb.runAsync(
           `INSERT INTO video_events
-             (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source)
-           VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          [sessionId, occurredAt, confidence, detection, swipeDirection, appScreenState, detectionSource]
+             (session_id, occurred_at, confidence, detection, swipe_direction, app_screen_state, detection_source, native_event_id)
+           VALUES (?, ?, 1.0, 'swipe_direct', ?, ?, 'native', ?);`,
+          [sessionId, occurredAt, swipeDirection, appScreenState, nativeEventId]
         );
-        if (!result?.lastInsertRowId || result.lastInsertRowId <= 0) {
-          throw new Error("Event insert returned invalid id");
-        }
-
-        // Atomically bump the session video count
-        await txDb.runAsync(
-          "UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;",
-          [sessionId]
-        );
-
-        return result.lastInsertRowId;
+        if (!result?.lastInsertRowId) throw new Error("Event insert failed");
+        await txDb.runAsync("UPDATE sessions SET video_count = video_count + 1 WHERE id = ?;", [sessionId]);
+        const session = await txDb.getFirstAsync("SELECT platform_id, day_bucket FROM sessions WHERE id = ?;", [sessionId]);
+        if (session) await this._recomputeDailyStatTx(txDb, session.platform_id, session.day_bucket);
+        return { committed: true, inserted: true };
       });
     } catch (_) {
-      return -1;
+      return { committed: false, inserted: false };
     }
   }
 
@@ -132,7 +117,7 @@ export class TrackingRepository {
          COALESCE(SUM(duration_ms), 0) AS total_duration_ms,
          COUNT(*) AS session_count
        FROM sessions
-       WHERE platform_id = ? AND day_bucket = ? AND ended_at IS NOT NULL;`,
+       WHERE platform_id = ? AND day_bucket = ?;`,
       [platformId, dayBucket]
     );
     const avgWatchMs =

@@ -1,164 +1,96 @@
-﻿package com.scrolltracker
+package com.scrolltracker
 
-
-import com.anonymous.scrolltracker.BuildConfig
 import android.accessibilityservice.AccessibilityService
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
+import com.anonymous.scrolltracker.BuildConfig
 import android.util.Log
+import kotlin.math.abs
 
-/**
- * ScrollTracker's AccessibilityService.
- *
- * IMPORTANT (privacy): this service never calls getRootInActiveWindow() or
- * walks the node tree to read text. It only reads the fields Android attaches
- * directly to the AccessibilityEvent that fired - source class name,
- * resource-id (if flagReportViewIds is set, see accessibility_service_config.xml),
- * and content-description, when the OS/app chooses to expose one. No caption
- * text, usernames, or video content are read, and nothing is logged verbosely
- * in release builds.
- *
- * IMPORTANT (accuracy): Android gives no semantic "video index" signal. We
- * approximate "the user reached a new video" using a mix of:
- *  - TYPE_WINDOW_STATE_CHANGED -> app came to foreground / navigated screens
- *  - TYPE_VIEW_SCROLLED        -> a scrollable container moved (candidate for
- *                                 a full-page swipe in a Reels/Shorts feed)
- *  - TYPE_WINDOW_CONTENT_CHANGED -> the visible content subtree changed,
- *                                 which a RecyclerView/ViewPager2 page swap
- *                                 typically triggers
- *
- * The actual "is this really a new video" decision (debouncing, minimum
- * dwell time, loop detection) happens in JS (SessionEstimator.ts) so the
- * heuristic can be iterated on without a native rebuild. This service's job
- * is only to forward candidate structural signals cheaply.
- *
- * CRITICAL FOR SWIPE DETECTION: We capture scrollDeltaX/Y on BOTH
- * TYPE_VIEW_SCROLLED and TYPE_WINDOW_CONTENT_CHANGED events. Many feeds
- * (especially TikTok and Instagram Reels) emit WINDOW_CONTENT_CHANGED
- * without VIEW_SCROLLED when videos transition, so we need deltas on both
- * event types for reliable swipe direction detection.
- */
+/** Emits only conservative, canonical vertical short-video page transitions. */
 class ScrollAccessibilityService : AccessibilityService() {
-
     private val trackedPackages = setOf(
-        "com.instagram.android",
-        "com.google.android.youtube",
-        "com.zhiliaoapp.musically",
-        "com.ss.android.ugc.trill", // TikTok's alternate package id in some regions
-        "com.snapchat.android"
+        "com.instagram.android", "com.google.android.youtube",
+        "com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.snapchat.android"
     )
+    private val lastCountAt = mutableMapOf<String, Long>()
+    private val lastDirection = mutableMapOf<String, String>()
+    private var foregroundPackage: String? = null
 
-    // Only process these event types - skip everything else early to save CPU/battery
-    private val allowedEventTypes = setOf(
-        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-        AccessibilityEvent.TYPE_VIEW_SCROLLED,
-        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-    )
-
-    private var lastForegroundPackage: String? = null
-    
-    // Track last scroll deltas to detect direction changes across event types
-    private val lastScrollDeltas = mutableMapOf<String, Pair<Int?, Int?>>()
+    override fun onCreate() {
+        super.onCreate()
+        ScrollEventBus.init(applicationContext)
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-        
-        // Early exit: skip event types we don't use before any object allocation
-        if (event.eventType !in allowedEventTypes) return
-        
+        event ?: return
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in trackedPackages) return
+        val now = event.eventTime.takeIf { it > 0 } ?: System.currentTimeMillis()
 
-        val eventType = when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "window_state_changed"
-            AccessibilityEvent.TYPE_VIEW_SCROLLED -> "view_scrolled"
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "content_changed"
-            else -> return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            foregroundPackage = packageName
+            ScrollEventBus.publish(ScrollEventBus.Event(
+                packageName = packageName, timestamp = now, eventType = "app_foreground"
+            ))
+            return
         }
+        if (event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED || foregroundPackage != packageName) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
 
-        // Emit an explicit app_foreground the first time we see a tracked
-        // package become active, so TrackingService.ts can open a session.
-        if (eventType == "window_state_changed" && lastForegroundPackage != packageName) {
-            lastForegroundPackage = packageName
-            ScrollEventBus.publish(
-                ScrollEventBus.Event(
-                    packageName = packageName,
-                    timestamp = System.currentTimeMillis(),
-                    eventType = "app_foreground"
-                )
-            )
-        }
+        val viewId = try { event.source?.viewIdResourceName.orEmpty().lowercase() } catch (_: Exception) { "" }
+        val className = event.className?.toString().orEmpty().lowercase()
+        val description = event.contentDescription?.toString().orEmpty().lowercase()
+        val screenHints = "$viewId $className $description"
 
-        val viewIdHint = try {
-            event.source?.viewIdResourceName
-        } catch (_: Exception) {
-            null
+        if (COMMENT_HINTS.any(screenHints::contains)) {
+            ScrollEventBus.publish(ScrollEventBus.Event(packageName = packageName, timestamp = now, eventType = "feed_hidden"))
+            return
         }
-        val contentDescHint = event.contentDescription?.toString()?.take(40) // hint only, never stored verbatim by JS
+        if (!isSupportedFeed(packageName, screenHints)) return
+        ScrollEventBus.publish(ScrollEventBus.Event(packageName = packageName, timestamp = now, eventType = "feed_visible"))
 
-        // getScrollDeltaX/Y were added in API 28 (Android 9) and only carry a
-        // meaningful value on typeViewScrolled from a scroll container that
-        // reports it (most modern RecyclerView/ViewPager2-based feeds do).
-        // On older OS versions, or when unsupported, both stay null and JS
-        // falls back to the structural (dwell + view-id-change) heuristic -
-        // see SessionEstimator.js#countStructural.
-        //
-        // CRITICAL FIX: Capture deltas on BOTH view_scrolled AND content_changed
-        // events. Many vertical feeds emit content_changed without view_scrolled
-        // when transitioning between videos, especially TikTok and Instagram Reels.
-        var scrollDeltaX: Int? = null
-        var scrollDeltaY: Int? = null
-        val shouldCaptureDeltas = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-                (eventType == "view_scrolled" || eventType == "content_changed")
-        
-        if (shouldCaptureDeltas) {
-            try {
-                val dx = event.scrollDeltaX
-                val dy = event.scrollDeltaY
-                if (dx != 0 || dy != 0) {
-                    scrollDeltaX = dx
-                    scrollDeltaY = dy
-                    // Store for cross-event-type tracking
-                    lastScrollDeltas[packageName] = Pair(dx, dy)
-                }
-            } catch (_: Exception) {
-                // Source view didn't report deltas - leave null, structural fallback handles it.
-            }
-        }
-        
-        // If no deltas on this event but we have recent ones from same package,
-        // attach them as context for JS-side swipe detection
-        if (scrollDeltaX == null && scrollDeltaY == null) {
-            val lastDelta = lastScrollDeltas[packageName]
-            if (lastDelta != null) {
-                scrollDeltaX = lastDelta.first
-                scrollDeltaY = lastDelta.second
-            }
-        }
+        val dx = event.scrollDeltaX
+        val dy = event.scrollDeltaY
+        val vertical = abs(dy)
+        if (vertical < MIN_VERTICAL_DELTA || vertical <= abs(dx) * 2) return
 
-        ScrollEventBus.publish(
-            ScrollEventBus.Event(
-                packageName = packageName,
-                timestamp = System.currentTimeMillis(),
-                eventType = eventType,
-                viewIdHint = viewIdHint,
-                contentDescHint = contentDescHint,
-                scrollDeltaX = scrollDeltaX,
-                scrollDeltaY = scrollDeltaY
-            )
-        )
+        val direction = if (dy > 0) "up" else "down"
+        val previousAt = lastCountAt[packageName] ?: 0L
+        if (now - previousAt < DUPLICATE_WINDOW_MS) return
+        // A rapid opposite callback is usually overscroll/bounce, not another page.
+        if (lastDirection[packageName] != null && lastDirection[packageName] != direction && now - previousAt < BOUNCE_WINDOW_MS) return
+
+        lastCountAt[packageName] = now
+        lastDirection[packageName] = direction
+        ScrollEventBus.publish(ScrollEventBus.Event(
+            packageName = packageName,
+            timestamp = now,
+            eventType = "video_swipe",
+            direction = direction,
+            appScreen = "short_video_feed"
+        ))
+    }
+
+    private fun isSupportedFeed(packageName: String, hints: String): Boolean {
+        val packageHints = when (packageName) {
+            "com.instagram.android" -> listOf("reel", "clips", "recycler")
+            "com.google.android.youtube" -> listOf("short", "reel", "recycler")
+            "com.zhiliaoapp.musically", "com.ss.android.ugc.trill" -> listOf("feed", "aweme", "viewpager", "recycler")
+            "com.snapchat.android" -> listOf("spotlight", "viewpager", "recycler")
+            else -> emptyList()
+        }
+        return packageHints.any(hints::contains)
     }
 
     override fun onInterrupt() {
-        if (BuildConfig.DEBUG) {
-            Log.w("ScrollTracker", "Accessibility service interrupted by the system")
-        }
+        if (BuildConfig.DEBUG) Log.w("ScrollTracker", "Accessibility service interrupted")
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        if (BuildConfig.DEBUG) {
-            Log.i("ScrollTracker", "ScrollAccessibilityService connected")
-        }
+    companion object {
+        private const val MIN_VERTICAL_DELTA = 120
+        private const val DUPLICATE_WINDOW_MS = 650L
+        private const val BOUNCE_WINDOW_MS = 1200L
+        private val COMMENT_HINTS = listOf("comment", "reply", "bottom_sheet", "dialog", "chat")
     }
 }

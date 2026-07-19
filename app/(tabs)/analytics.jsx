@@ -112,7 +112,7 @@ export default function AnalyticsScreen() {
               </CartesianChart>
             ) : (
               <View className="flex-1 items-center justify-center">
-                <MaterialCommunityIcons name="chart-bar-off" size={48} color="#A7F3D0" />
+                <MaterialCommunityIcons name="chart-bar" size={48} color="#A7F3D0" />
                 <Text className="text-textMuted text-base mt-3">No data yet</Text>
               </View>
             )}
